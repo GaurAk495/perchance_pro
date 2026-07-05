@@ -1,0 +1,17 @@
+{
+  "name": "ext",
+  "module": "dist/index.js",
+  "type": "module",
+  "private": true,
+  "main": "dist/index.js",
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/chrome": "^0.2.2"
+  },
+  "scripts": {
+    "build": "bun build src/index.ts --outdir dist"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
