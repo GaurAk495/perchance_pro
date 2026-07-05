@@ -9,7 +9,7 @@
     "@types/chrome": "^0.2.2"
   },
   "scripts": {
-    "build": "bun build src/index.ts --outdir dist"
+    "build": "bun build src/content/index.ts --outdir dist && bun build src/background/background.ts --outdir dist && bun build src/sidebar/sidebar.ts --outdir dist && bun run copy-assets.ts"
   },
   "peerDependencies": {
     "typescript": "^5"

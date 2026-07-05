@@ -1,0 +1,207 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>Perchance Pro</title>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+        <link
+            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+            rel="stylesheet"
+        />
+        <link rel="stylesheet" href="sidebar.css" />
+    </head>
+    <body>
+        <div id="app">
+            <div id="header">
+                <h1>Perchance Pro</h1>
+                <span id="connection-badge" class="offline">◉ Offline</span>
+            </div>
+
+            <div id="tab-bar">
+                <button class="tab-btn active" data-tab="dashboard">
+                    Dashboard
+                </button>
+                <button class="tab-btn" data-tab="settings">Settings</button>
+                <button class="tab-btn" data-tab="logs">Logs</button>
+            </div>
+
+            <div id="tab-content">
+                <!-- ─── Dashboard ─── -->
+                <div
+                    class="tab-panel active"
+                    id="dashboard-panel"
+                    data-tab="dashboard"
+                >
+                    <div class="btn-group">
+                        <button id="btn-start" class="btn btn-primary">
+                            ▶ Start
+                        </button>
+                        <button
+                            id="btn-pause"
+                            class="btn btn-secondary"
+                            disabled
+                        >
+                            ⏸ Pause
+                        </button>
+                        <button id="btn-stop" class="btn btn-danger" disabled>
+                            ⏹ Stop
+                        </button>
+                    </div>
+
+                    <label>
+                        Prompt List
+                        <textarea
+                            id="input-prompts"
+                            placeholder="Enter prompts, one per line..."
+                        ></textarea>
+                    </label>
+
+                    <div class="btn-group">
+                        <button id="btn-import" class="btn btn-secondary">
+                            📂 Import
+                        </button>
+                        <button id="btn-clear" class="btn btn-secondary">
+                            🗑 Clear
+                        </button>
+                    </div>
+                    <div id="prompt-list"></div>
+                </div>
+
+                <!-- ─── Settings ─── -->
+                <div class="tab-panel" id="settings-panel" data-tab="settings">
+                    <form>
+                        <label>
+                            Workers
+                            <input
+                                type="number"
+                                id="input-workers"
+                                min="1"
+                                max="8"
+                                value="3"
+                            />
+                        </label>
+
+                        <label>
+                            Images per Prompt
+                            <input
+                                type="number"
+                                id="input-num-images"
+                                min="1"
+                                max="20"
+                                value="1"
+                            />
+                        </label>
+
+                        <label class="form-row-full">
+                            Negative Prompt
+                            <textarea
+                                id="input-negative"
+                                placeholder="Optional negative prompt..."
+                            ></textarea>
+                        </label>
+
+                        <label>
+                            Prefix
+                            <input
+                                type="text"
+                                id="input-prefix"
+                                placeholder="Prepended to prompt"
+                            />
+                        </label>
+
+                        <label>
+                            Suffix
+                            <input
+                                type="text"
+                                id="input-suffix"
+                                placeholder="Appended to prompt"
+                            />
+                        </label>
+
+                        <label>
+                            Subfolder
+                            <input
+                                type="text"
+                                id="input-folder"
+                                placeholder="e.g. portraits"
+                            />
+                        </label>
+
+                        <label>
+                            Filename Pattern
+                            <select id="input-filename-pattern">
+                                <option value="prompt_text_image_idx">
+                                    {prompt_text}_{image_idx}
+                                </option>
+                                <option value="prompt_idx_image_idx">
+                                    {prompt_idx}_{image_idx}
+                                </option>
+                                <option value="timestamp_image_idx">
+                                    {timestamp}_{image_idx}
+                                </option>
+                                <option
+                                    value="prompt_idx_prompt_text_image_idx"
+                                >
+                                    {prompt_idx}_{prompt_text}_{image_idx}
+                                </option>
+                            </select>
+                        </label>
+
+                        <label
+                            style="
+                                flex-direction: row;
+                                align-items: center;
+                                gap: 6px;
+                                grid-column: 1/-1;
+                            "
+                        >
+                            <input
+                                type="checkbox"
+                                id="input-per-prompt-folders"
+                            />
+                            Per-prompt folders
+                        </label>
+                    </form>
+                </div>
+
+                <!-- ─── Logs ─── -->
+                <div class="tab-panel" id="logs-panel" data-tab="logs">
+                    <div id="stats-panel"></div>
+                    <div id="log-filter-bar">
+                        <button class="filter-btn active" data-filter="all">
+                            All
+                        </button>
+                        <button class="filter-btn" data-filter="info">
+                            Info
+                        </button>
+                        <button class="filter-btn" data-filter="success">
+                            Success
+                        </button>
+                        <button class="filter-btn" data-filter="error">
+                            Errors
+                        </button>
+                        <button class="filter-btn" data-filter="warning">
+                            Warnings
+                        </button>
+                        <button
+                            id="btn-clear-logs"
+                            class="btn btn-secondary"
+                            style="
+                                margin-left: auto;
+                                padding: 3px 10px;
+                                font-size: 10px;
+                            "
+                        >
+                            Clear
+                        </button>
+                    </div>
+                    <ul id="log-list"></ul>
+                </div>
+            </div>
+        </div>
+
+        <script src="sidebar.js"></script>
+    </body>
+</html>
