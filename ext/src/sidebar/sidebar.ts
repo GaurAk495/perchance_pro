@@ -234,6 +234,7 @@ function initImportExport(): void {
   $<HTMLButtonElement>('btn-clear').addEventListener('click', () => {
     $<HTMLTextAreaElement>('input-prompts').value = '';
     $('prompt-list').innerHTML = '';
+    chrome.runtime.sendMessage({ action: 'CLEAR' });
   });
 }
 
