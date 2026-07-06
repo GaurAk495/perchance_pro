@@ -475,12 +475,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   } else if (msg.action === 'STOP') {
     state.isRunning = false;
     state.isPaused = false;
+    stopRotation();
     log('Stopped by user.', 'warning');
     closeWorkers();
     saveState();
     sendResponse({ status: 'stopped' });
   } else if (msg.action === 'PAUSE') {
     state.isPaused = true;
+    stopRotation();
     log('Paused.', 'info');
     saveState();
     sendResponse({ status: 'paused' });
@@ -488,6 +490,13 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.isPaused = false;
     log('Resumed.', 'info');
     saveState();
+
+    // Re-enqueue any busy workers that might need a foreground kick
+    for (const w of state.workers) {
+      if (w.busy) {
+        enqueueForegroundKick(w.tabId);
+      }
+    }
 
     if (hasPendingPrompts()) {
       const idleWorker = findIdleWorker();
