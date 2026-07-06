@@ -268,6 +268,10 @@ function handleWorkerFailure(worker: WorkerTab): void {
   const idx = state.workers.indexOf(worker);
   if (idx !== -1) state.workers.splice(idx, 1);
 
+  // Remove from foreground queue if present
+  const queueIdx = state.foregroundQueue.indexOf(worker.tabId);
+  if (queueIdx !== -1) state.foregroundQueue.splice(queueIdx, 1);
+
   if (state.isRunning && hasPendingPrompts()) {
     log('Creating replacement worker...', 'warning');
     createWorkerTab();
@@ -549,6 +553,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 
   state.workers.splice(idx, 1);
+
+  // Remove from foreground queue if present
+  const queueIdx = state.foregroundQueue.indexOf(tabId);
+  if (queueIdx !== -1) state.foregroundQueue.splice(queueIdx, 1);
 
   if (state.isRunning && hasPendingPrompts()) {
     createWorkerTab();
