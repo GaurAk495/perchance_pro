@@ -3,8 +3,6 @@ console.log('Perchance Pro content script injected.');
 // ─── Controller Logic (runs in frame that has generateButtonEl) ───
 
 let listenForRun = false;
-let expectingImages = false;
-let captureBlockedUntil = 0;
 const reportedImages = new Set<string>();
 
 setInterval(() => {
@@ -15,8 +13,6 @@ setInterval(() => {
 
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.action === 'CMD_RUN_PROMPT') {
-        captureBlockedUntil = Date.now() + 3000;
-        expectingImages = false;
         runPrompt(msg.prompt, msg.negativePrompt || '', msg.numImages || 1);
         sendResponse({ status: 'started' });
       }
@@ -51,10 +47,8 @@ function runPrompt(promptText: string, negativePrompt: string, numImages: number
   const outputArea = document.getElementById('outputAreaEl');
   if (outputArea) outputArea.innerHTML = '';
   reportedImages.clear();
-  captureBlockedUntil = Date.now() + 3000;
 
   chrome.runtime.sendMessage({ action: 'EXPECT_IMAGES', count: numImages, prompt: promptText });
-  expectingImages = true;
 
   const btn = document.getElementById('generateButtonEl') as HTMLButtonElement | null;
   if (btn) btn.click();
@@ -63,17 +57,6 @@ function runPrompt(promptText: string, negativePrompt: string, numImages: number
 // ─── Image Extraction (runs in ALL frames via all_frames: true) ───
 
 setInterval(() => {
-  if (Date.now() < captureBlockedUntil) return;
-  if (!expectingImages) return;
-
-  const frame = window.frameElement;
-  if (!frame) return;
-
-  const isInOutputArea = frame.closest('#outputAreaEl') !== null;
-  const isInGeneratorArea = frame.closest('#generatorArea') !== null;
-
-  if (!isInOutputArea || isInGeneratorArea) return;
-
   const imgs = Array.from(document.querySelectorAll<HTMLImageElement>('img#resultImgEl'));
   for (const img of imgs) {
     if (
@@ -86,6 +69,7 @@ setInterval(() => {
     ) {
       if (!reportedImages.has(img.src)) {
         reportedImages.add(img.src);
+        console.log('[Perchance Pro] Image ready, sending to background:', img.src);
         chrome.runtime.sendMessage({ action: 'IMAGE_READY', src: img.src });
       }
     }

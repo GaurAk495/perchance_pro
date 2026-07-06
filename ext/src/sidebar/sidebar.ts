@@ -42,6 +42,7 @@ interface AppState {
   workerCount: number;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
+  promptWorkers: (number | null)[];
   folderName: string;
   prefix: string;
   suffix: string;
@@ -304,7 +305,11 @@ function renderPromptList(state: AppState): void {
           failed: '✗',
         };
         const icon = iconMap[status] || '○';
-        return `<li><span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p)}</span></li>`;
+        const wIdx = state.promptWorkers?.[i];
+        const tag = (wIdx !== undefined && wIdx !== null)
+          ? `<span class="worker-tag wtag-${wIdx}" style="font-size: 8px; padding: 0.5px 3.5px; border-radius: 2px;">w${wIdx}</span>`
+          : '';
+        return `<li><span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p)}</span>${tag}</li>`;
       })
       .join('');
 }

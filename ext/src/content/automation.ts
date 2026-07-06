@@ -1,4 +1,4 @@
-import type { Prompt } from '../shared/types.ts';
+import type { Prompt } from "../shared/types.ts";
 import {
   getPromptBox,
   getNegativePromptBox,
@@ -6,9 +6,9 @@ import {
   getGenerateButton,
   setFieldValue,
   clickButton,
-} from './dom.ts';
-import { waitForElement, waitForImageCount } from './wait.ts';
-import { extractAndDownloadImages } from './downloader.ts';
+} from "./dom.ts";
+import { waitForElement, waitForImageCount } from "./wait.ts";
+import { extractAndDownloadImages } from "./downloader.ts";
 
 export async function processPrompt(
   prompt: Prompt,
@@ -30,7 +30,6 @@ export async function processPrompt(
   }
 
   const generateButton = await waitForElement(getGenerateButton);
-  clickButton(generateButton);
 
   await waitForImageCount(numImages);
 

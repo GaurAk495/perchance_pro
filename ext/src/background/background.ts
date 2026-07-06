@@ -38,6 +38,7 @@ interface AppState {
   workerCount: number;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
+  promptWorkers: (number | null)[];
   folderName: string;
   prefix: string;
   suffix: string;
@@ -59,6 +60,7 @@ function createInitialState(): AppState {
     workerCount: DEFAULTS.workerCount,
     workers: [],
     promptStatuses: [],
+    promptWorkers: [],
     folderName: '',
     prefix: '',
     suffix: '',
@@ -75,7 +77,7 @@ let state: AppState = createInitialState();
 // ─── Init ───
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => { });
 });
 
 chrome.storage.local.get(['appState'], (res) => {
@@ -83,7 +85,8 @@ chrome.storage.local.get(['appState'], (res) => {
     const saved = res.appState as Partial<AppState>;
     state = { ...createInitialState(), ...saved };
     state.workers = [];
-    state.promptStatuses = state.prompts.map(() => state.promptStatuses[state.prompts.indexOf('')] ?? 'pending');
+    state.promptStatuses = state.prompts.map((_, idx) => state.promptStatuses[idx] ?? 'pending');
+    state.promptWorkers = state.prompts.map((_, idx) => state.promptWorkers[idx] ?? null);
 
     if (!state.filenamePattern) state.filenamePattern = DEFAULTS.filenamePattern;
     if (state.perPromptFolders === undefined) state.perPromptFolders = DEFAULTS.perPromptFolders;
@@ -106,12 +109,12 @@ chrome.storage.local.get(['appState'], (res) => {
 // ─── State management ───
 
 function saveState(): void {
-  chrome.storage.local.set({ appState: state }).catch(() => {});
+  chrome.storage.local.set({ appState: state }).catch(() => { });
   broadcastState();
 }
 
 function broadcastState(): void {
-  chrome.runtime.sendMessage({ action: 'STATE_UPDATED', state }).catch(() => {});
+  chrome.runtime.sendMessage({ action: 'STATE_UPDATED', state }).catch(() => { });
 }
 
 function log(msg: string, type: LogEntry['type'] = 'info', workerIndex?: number): void {
@@ -164,7 +167,6 @@ function createWorkerTab(): void {
     setTimeout(() => checkWorkerRegistration(tabId), DEFAULTS.workerCreateTimeout);
   });
 }
-
 function checkWorkerRegistration(tabId: number): void {
   const worker = state.workers.find(w => w.tabId === tabId);
   if (!worker) return;
@@ -213,6 +215,7 @@ function assignNextPrompt(worker: WorkerTab): void {
   worker.promptStartedAt = Date.now();
 
   state.promptStatuses[idx] = 'processing';
+  state.promptWorkers[idx] = worker.workerIndex;
   broadcastState();
 
   const finalPrompt = `${state.prefix}${rawPrompt}${state.suffix}`;
@@ -327,18 +330,16 @@ function checkAllComplete(): void {
 
 function closeWorkers(): void {
   for (const w of state.workers) {
-    chrome.tabs.remove(w.tabId).catch(() => {});
+    chrome.tabs.remove(w.tabId).catch(() => { });
   }
   state.workers = [];
 }
-
 function spawnWorkers(count: number): void {
   const effectiveCount = Math.min(count, state.prompts.length);
   for (let i = 0; i < effectiveCount; i++) {
     createWorkerTab();
   }
 }
-
 // ─── Message handler ───
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -390,6 +391,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.isRunning = true;
     state.isPaused = false;
     state.promptStatuses = prompts.map(() => 'pending' as PromptStatus);
+    state.promptWorkers = prompts.map(() => null);
     state.workerStats = [];
     state.nextWorkerIndex = 0;
 
@@ -466,6 +468,7 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   const promptIdx = worker.currentPromptIndex;
   if (promptIdx !== null && state.promptStatuses[promptIdx] === 'processing') {
     state.promptStatuses[promptIdx] = 'pending';
+    state.promptWorkers[promptIdx] = null;
     const stat = getOrCreateWorkerStat(worker.workerIndex);
     stat.errors++;
     log(`Worker closed mid-prompt. Reassigning ${promptIdx + 1}.`, 'warning', worker.workerIndex);
