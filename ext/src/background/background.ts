@@ -257,6 +257,8 @@ function assignNextPrompt(worker: WorkerTab): void {
         worker.currentPromptIndex = null;
         broadcastState();
         handleWorkerFailure(worker);
+      } else {
+        enqueueForegroundKick(worker.tabId);
       }
     }
   );
