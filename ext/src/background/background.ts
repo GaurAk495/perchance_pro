@@ -358,6 +358,48 @@ function closeWorkers(): void {
   }
   state.workers = [];
 }
+
+function enqueueForegroundKick(tabId: number): void {
+  if (!state.foregroundQueue.includes(tabId)) {
+    state.foregroundQueue.push(tabId);
+  }
+  if (!state.isRotating) {
+    startRotation();
+  }
+}
+
+let rotationTimer: ReturnType<typeof setInterval> | null = null;
+
+function startRotation(): void {
+  if (state.isRotating) return;
+  state.isRotating = true;
+  rotationTimer = setInterval(rotateForeground, state.foregroundDwellMs);
+  rotateForeground();
+}
+
+function rotateForeground(): void {
+  if (state.foregroundQueue.length === 0) {
+    stopRotation();
+    return;
+  }
+
+  const tabId = state.foregroundQueue.shift()!;
+  chrome.tabs.update(tabId, { active: true }, () => {
+    if (chrome.runtime.lastError) {
+      // Tab may have been closed; skip silently
+    }
+  });
+}
+
+function stopRotation(): void {
+  state.isRotating = false;
+  if (rotationTimer !== null) {
+    clearInterval(rotationTimer);
+    rotationTimer = null;
+  }
+  state.foregroundQueue = [];
+}
+
 function spawnWorkers(count: number): void {
   const effectiveCount = Math.min(count, state.prompts.length);
   for (let i = 0; i < effectiveCount; i++) {
