@@ -73,7 +73,7 @@ function createInitialState(): AppState {
     workerStats: [],
     nextWorkerIndex: 0,
     foregroundQueue: [],
-    foregroundDwellMs: 3000,
+    foregroundDwellMs: DEFAULTS.foregroundDwellMs,
     isRotating: false,
   };
 }
@@ -417,6 +417,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.promptWorkers = prompts.map(() => null);
     state.workerStats = [];
     state.nextWorkerIndex = 0;
+    state.foregroundQueue = [];
+    state.isRotating = false;
 
     log(
       `Started (${prompts.length} prompts, ${state.numImages} img/ea, ${state.workerCount} workers)`,
