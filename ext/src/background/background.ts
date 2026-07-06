@@ -149,51 +149,35 @@ function getOrCreateWorkerStat(workerIndex: number): WorkerStat {
 // ─── Worker pool ───
 
 function createWorkerTab(): void {
-  const usedTabIds = new Set(state.workers.map((w) => w.tabId));
-
-  chrome.tabs.query({ url: 'https://perchance.org/*' }, (existingTabs) => {
-    const available = existingTabs?.find((t) => t.id !== undefined && !usedTabIds.has(t.id));
-
-    if (available && available.id !== undefined) {
-      registerWorkerFromTab(available.id);
-      chrome.tabs.update(available.id, {
-        url: 'https://perchance.org/image-generator-professional',
+  chrome.tabs.create(
+    { url: 'https://perchance.org/image-generator-professional', active: false },
+    (tab) => {
+      const tabId: number | undefined = tab.id;
+      if (tabId === undefined) {
+        log('Failed to create worker tab.', 'error');
+        return;
+      }
+      const workerIndex = state.nextWorkerIndex++;
+      state.workers.push({
+        tabId,
+        workerIndex,
+        frameId: null,
+        busy: false,
+        currentPromptIndex: null,
+        expectedCount: 0,
+        receivedCount: 0,
+        promptStartedAt: 0,
+        tabCreatedAt: Date.now(),
       });
-    } else {
-      chrome.tabs.create(
-        { url: 'https://perchance.org/image-generator-professional', active: false },
-        (tab) => {
-          const tabId: number | undefined = tab.id;
-          if (tabId === undefined) {
-            log('Failed to create worker tab.', 'error');
-            return;
-          }
-          registerWorkerFromTab(tabId);
-        }
-      );
+      getOrCreateWorkerStat(workerIndex);
+      log(`Worker tab created (id=${tabId}).`, 'info', workerIndex);
+      broadcastState();
+
+      setTimeout(() => checkWorkerRegistration(tabId), DEFAULTS.workerCreateTimeout);
     }
-  });
+  );
 }
 
-function registerWorkerFromTab(tabId: number): void {
-  const workerIndex = state.nextWorkerIndex++;
-  state.workers.push({
-    tabId,
-    workerIndex,
-    frameId: null,
-    busy: false,
-    currentPromptIndex: null,
-    expectedCount: 0,
-    receivedCount: 0,
-    promptStartedAt: 0,
-    tabCreatedAt: Date.now(),
-  });
-  getOrCreateWorkerStat(workerIndex);
-  log(`Worker tab ready (id=${tabId}).`, 'info', workerIndex);
-  broadcastState();
-
-  setTimeout(() => checkWorkerRegistration(tabId), DEFAULTS.workerCreateTimeout);
-}
 function checkWorkerRegistration(tabId: number): void {
   const worker = state.workers.find((w) => w.tabId === tabId);
   if (!worker) return;
