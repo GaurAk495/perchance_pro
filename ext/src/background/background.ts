@@ -47,9 +47,8 @@ interface AppState {
   logs: LogEntry[];
   workerStats: WorkerStat[];
   nextWorkerIndex: number;
-  foregroundQueue: number[];
-  foregroundDwellMs: number;
-  isRotating: boolean;
+  foregroundIntervalMs: number;
+  rotationIndex: number;
 }
 
 function createInitialState(): AppState {
@@ -72,9 +71,8 @@ function createInitialState(): AppState {
     logs: [],
     workerStats: [],
     nextWorkerIndex: 0,
-    foregroundQueue: [],
-    foregroundDwellMs: DEFAULTS.foregroundDwellMs,
-    isRotating: false,
+    foregroundIntervalMs: DEFAULTS.foregroundIntervalMs,
+    rotationIndex: 0,
   };
 }
 
@@ -206,6 +204,8 @@ function getNextPendingIndex(): number {
 function assignNextPrompt(worker: WorkerTab): void {
   if (!state.isRunning || state.isPaused) return;
 
+  startRotation();
+
   const idx = getNextPendingIndex();
   if (idx === -1) {
     checkAllComplete();
@@ -257,8 +257,6 @@ function assignNextPrompt(worker: WorkerTab): void {
         worker.currentPromptIndex = null;
         broadcastState();
         handleWorkerFailure(worker);
-      } else {
-        enqueueForegroundKick(worker.tabId);
       }
     }
   );
@@ -267,10 +265,6 @@ function assignNextPrompt(worker: WorkerTab): void {
 function handleWorkerFailure(worker: WorkerTab): void {
   const idx = state.workers.indexOf(worker);
   if (idx !== -1) state.workers.splice(idx, 1);
-
-  // Remove from foreground queue if present
-  const queueIdx = state.foregroundQueue.indexOf(worker.tabId);
-  if (queueIdx !== -1) state.foregroundQueue.splice(queueIdx, 1);
 
   if (state.isRunning && hasPendingPrompts()) {
     log('Creating replacement worker...', 'warning');
@@ -352,6 +346,7 @@ function checkAllComplete(): void {
   if (!hasPendingPrompts() && state.workers.every((w) => !w.busy)) {
     state.isRunning = false;
     state.isPaused = false;
+    stopRotation();
     log('=== All prompts completed! ===', 'success');
     closeWorkers();
     saveState();
@@ -365,32 +360,22 @@ function closeWorkers(): void {
   state.workers = [];
 }
 
-function enqueueForegroundKick(tabId: number): void {
-  if (!state.foregroundQueue.includes(tabId)) {
-    state.foregroundQueue.push(tabId);
-  }
-  if (!state.isRotating) {
-    startRotation();
-  }
-}
-
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
 
 function startRotation(): void {
-  if (state.isRotating) return;
-  state.isRotating = true;
-  rotationTimer = setInterval(rotateForeground, state.foregroundDwellMs);
-  rotateForeground();
+  if (rotationTimer !== null) return;
+  log('Foreground rotation started.', 'info');
+  rotationTimer = setInterval(rotateForeground, state.foregroundIntervalMs);
 }
 
 function rotateForeground(): void {
-  if (state.foregroundQueue.length === 0) {
-    stopRotation();
-    return;
-  }
+  if (state.workers.length === 0) return;
 
-  const tabId = state.foregroundQueue.shift()!;
-  chrome.tabs.update(tabId, { active: true }, () => {
+  const worker = state.workers[state.rotationIndex % state.workers.length];
+  if (!worker) return;
+  state.rotationIndex++;
+
+  chrome.tabs.update(worker.tabId, { active: true }, () => {
     if (chrome.runtime.lastError) {
       // Tab may have been closed; skip silently
     }
@@ -398,12 +383,11 @@ function rotateForeground(): void {
 }
 
 function stopRotation(): void {
-  state.isRotating = false;
   if (rotationTimer !== null) {
     clearInterval(rotationTimer);
     rotationTimer = null;
   }
-  state.foregroundQueue = [];
+  state.rotationIndex = 0;
 }
 
 function spawnWorkers(count: number): void {
@@ -465,8 +449,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.promptWorkers = prompts.map(() => null);
     state.workerStats = [];
     state.nextWorkerIndex = 0;
-    state.foregroundQueue = [];
-    state.isRotating = false;
+    state.rotationIndex = 0;
+    stopRotation();
 
     log(
       `Started (${prompts.length} prompts, ${state.numImages} img/ea, ${state.workerCount} workers)`,
@@ -495,12 +479,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     log('Resumed.', 'info');
     saveState();
 
-    // Re-enqueue any busy workers that might need a foreground kick
-    for (const w of state.workers) {
-      if (w.busy) {
-        enqueueForegroundKick(w.tabId);
-      }
-    }
+    startRotation();
 
     if (hasPendingPrompts()) {
       const idleWorker = findIdleWorker();
@@ -553,10 +532,6 @@ chrome.tabs.onRemoved.addListener((tabId) => {
   }
 
   state.workers.splice(idx, 1);
-
-  // Remove from foreground queue if present
-  const queueIdx = state.foregroundQueue.indexOf(tabId);
-  if (queueIdx !== -1) state.foregroundQueue.splice(queueIdx, 1);
 
   if (state.isRunning && hasPendingPrompts()) {
     createWorkerTab();

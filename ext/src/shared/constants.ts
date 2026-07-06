@@ -47,5 +47,5 @@ export const DEFAULTS = {
   saveAs: false,
   filenamePattern: 'prompt_text_image_idx' as FilenamePatternKey,
   perPromptFolders: false,
-  foregroundDwellMs: 3000,
+  foregroundIntervalMs: 10000,
 } as const;
