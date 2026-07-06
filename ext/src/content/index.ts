@@ -1,5 +1,8 @@
 console.log('Perchance Pro content script injected.');
 
+const generatorArea = document.querySelector('#generatorArea');
+if (generatorArea) generatorArea.remove();
+
 // ─── Controller Logic (runs in frame that has generateButtonEl) ───
 
 let listenForRun = false;
