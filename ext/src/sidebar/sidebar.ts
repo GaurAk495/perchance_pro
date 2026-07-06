@@ -175,7 +175,7 @@ function loadSettings(): void {
   chrome.storage.local.get(['settings'], (res) => {
     const s = res.settings as Record<string, string> | undefined;
     if (!s) return;
-    if (s.workerCount) $<HTMLInputElement>('input-workers').value = s.workerCount;
+    if (s.workerCount) $<HTMLSelectElement>('input-workers').value = s.workerCount;
     if (s.numImages) $<HTMLInputElement>('input-num-images').value = s.numImages;
     if (s.negativePrompt !== undefined)
       $<HTMLTextAreaElement>('input-negative').value = s.negativePrompt;
@@ -191,7 +191,7 @@ function loadSettings(): void {
 function saveSettings(): void {
   chrome.storage.local.set({
     settings: {
-      workerCount: $<HTMLInputElement>('input-workers').value,
+      workerCount: $<HTMLSelectElement>('input-workers').value,
       numImages: $<HTMLInputElement>('input-num-images').value,
       negativePrompt: $<HTMLTextAreaElement>('input-negative').value,
       folderName: $<HTMLInputElement>('input-folder').value,
@@ -204,7 +204,7 @@ function saveSettings(): void {
 }
 
 function readWorkerCount(): number {
-  return parseInt($<HTMLInputElement>('input-workers').value, 10) || DEFAULTS.workerCount;
+  return parseInt($<HTMLSelectElement>('input-workers').value, 10) || DEFAULTS.workerCount;
 }
 
 function readNumImages(): number {
@@ -233,6 +233,7 @@ function initImportExport(): void {
 
   $<HTMLButtonElement>('btn-clear').addEventListener('click', () => {
     $<HTMLTextAreaElement>('input-prompts').value = '';
+    $('prompt-list').innerHTML = '';
   });
 }
 
