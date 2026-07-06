@@ -20,8 +20,8 @@ export class Queue {
       prompt: Prompt,
       index: number,
       numImages: number,
-      negativePrompt: string,
-    ) => Promise<void>,
+      negativePrompt: string
+    ) => Promise<void>
   ) {}
 
   get status(): QueueStatus {
@@ -75,7 +75,7 @@ export class Queue {
 
       try {
         await this._withRetry(() =>
-          this._processPrompt(prompt, i, this._numImages, this._negativePrompt),
+          this._processPrompt(prompt, i, this._numImages, this._negativePrompt)
         );
         this._emit({ type: 'PROMPT_FINISHED', promptIndex: i, imagesDownloaded: this._numImages });
       } catch (error) {
@@ -127,7 +127,10 @@ export class Queue {
     });
   }
 
-  private async _withRetry<T>(fn: () => Promise<T>, retries: number = DEFAULTS.maxRetries): Promise<T> {
+  private async _withRetry<T>(
+    fn: () => Promise<T>,
+    retries: number = DEFAULTS.maxRetries
+  ): Promise<T> {
     let lastError: unknown;
 
     for (let attempt = 0; attempt < retries; attempt++) {

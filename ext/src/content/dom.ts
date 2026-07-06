@@ -3,6 +3,7 @@ import { IFRAME_ID, SELECTORS } from '../shared/constants.ts';
 function getIframeDocument(): Document | null {
   const iframe = document.getElementById(IFRAME_ID) as HTMLIFrameElement | null;
   if (!iframe) return null;
+  console.log('iframe', iframe);
   return iframe.contentDocument ?? iframe.contentWindow?.document ?? null;
 }
 
@@ -40,17 +41,19 @@ export function getImageIframes(): readonly HTMLIFrameElement[] {
   const doc = getIframeDocument();
   if (!doc) return [];
   const container = doc.querySelector(SELECTORS.outputArea);
+  console.log('container', container);
   if (!container) return [];
   return Array.from(container.querySelectorAll<HTMLIFrameElement>(SELECTORS.imageIframe));
 }
 
 export function setFieldValue(
   element: HTMLInputElement | HTMLTextAreaElement,
-  value: string,
+  value: string
 ): void {
-  const proto = element instanceof HTMLTextAreaElement
-    ? HTMLTextAreaElement.prototype
-    : HTMLInputElement.prototype;
+  const proto =
+    element instanceof HTMLTextAreaElement
+      ? HTMLTextAreaElement.prototype
+      : HTMLInputElement.prototype;
 
   const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   if (nativeSetter) {

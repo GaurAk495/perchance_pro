@@ -18,10 +18,7 @@ export interface StopQueueMessage {
 }
 
 export type SidebarCommand =
-  | StartQueueMessage
-  | PauseQueueMessage
-  | ResumeQueueMessage
-  | StopQueueMessage;
+  StartQueueMessage | PauseQueueMessage | ResumeQueueMessage | StopQueueMessage;
 
 export interface ProgressEventMessage {
   readonly type: 'PROGRESS_EVENT';

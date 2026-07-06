@@ -5,7 +5,7 @@ import { getImageIframes } from './dom.ts';
 export async function waitForElement<T extends Element>(
   getter: () => T | null,
   timeout: number = DEFAULTS.maxPollTime,
-  interval: number = DEFAULTS.pollInterval,
+  interval: number = DEFAULTS.pollInterval
 ): Promise<T> {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -18,7 +18,7 @@ export async function waitForElement<T extends Element>(
 
 export async function waitForImageCount(
   expectedCount: number,
-  timeout: number = DEFAULTS.maxPollTime,
+  timeout: number = DEFAULTS.maxPollTime
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < timeout) {
@@ -32,7 +32,7 @@ export async function waitForImageCount(
 
 export async function waitForImageSrc(
   imageIframe: HTMLIFrameElement,
-  timeout: number = DEFAULTS.imageLoadTimeout,
+  timeout: number = DEFAULTS.imageLoadTimeout
 ): Promise<string> {
   const start = Date.now();
   while (Date.now() - start < timeout) {

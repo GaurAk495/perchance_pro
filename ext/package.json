@@ -6,9 +6,11 @@
   "main": "dist/index.js",
   "devDependencies": {
     "@types/bun": "latest",
-    "@types/chrome": "^0.2.2"
+    "@types/chrome": "^0.2.2",
+    "prettier": "^3.9.4"
   },
   "scripts": {
+    "format": "prettier . --write",
     "build": "bun build src/content/index.ts --outdir dist && bun build src/background/background.ts --outdir dist && bun build src/sidebar/sidebar.ts --outdir dist && bun run copy-assets.ts"
   },
   "peerDependencies": {

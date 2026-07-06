@@ -21,19 +21,19 @@ export const STORAGE_KEYS = {
 } as const satisfies Record<string, string>;
 
 export const FILENAME_PATTERNS = {
-  'prompt_text_image_idx': '{prompt_text}_{image_idx}',
-  'prompt_idx_image_idx': '{prompt_idx}_{image_idx}',
-  'timestamp_image_idx': '{timestamp}_{image_idx}',
-  'prompt_idx_prompt_text_image_idx': '{prompt_idx}_{prompt_text}_{image_idx}',
+  prompt_text_image_idx: '{prompt_text}_{image_idx}',
+  prompt_idx_image_idx: '{prompt_idx}_{image_idx}',
+  timestamp_image_idx: '{timestamp}_{image_idx}',
+  prompt_idx_prompt_text_image_idx: '{prompt_idx}_{prompt_text}_{image_idx}',
 } as const satisfies Record<string, string>;
 
 export type FilenamePatternKey = keyof typeof FILENAME_PATTERNS;
 
 export const FILENAME_PATTERN_LABELS: Record<FilenamePatternKey, string> = {
-  'prompt_text_image_idx': '{prompt_text}_{image_idx}',
-  'prompt_idx_image_idx': '{prompt_idx}_{image_idx}',
-  'timestamp_image_idx': '{timestamp}_{image_idx}',
-  'prompt_idx_prompt_text_image_idx': '{prompt_idx}_{prompt_text}_{image_idx}',
+  prompt_text_image_idx: '{prompt_text}_{image_idx}',
+  prompt_idx_image_idx: '{prompt_idx}_{image_idx}',
+  timestamp_image_idx: '{timestamp}_{image_idx}',
+  prompt_idx_prompt_text_image_idx: '{prompt_idx}_{prompt_text}_{image_idx}',
 };
 
 export const DEFAULTS = {

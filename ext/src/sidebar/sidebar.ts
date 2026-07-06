@@ -42,6 +42,7 @@ interface AppState {
   workerCount: number;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
+  promptWorkers: (number | null)[];
   folderName: string;
   prefix: string;
   suffix: string;
@@ -120,7 +121,10 @@ function initDashboardActions(): void {
 
 function handleStart(): void {
   const textarea = $<HTMLTextAreaElement>('input-prompts');
-  const prompts = textarea.value.split('\n').map(s => s.trim()).filter(Boolean);
+  const prompts = textarea.value
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
   if (!prompts.length) return;
 
   chrome.runtime.sendMessage({
@@ -152,7 +156,16 @@ function handleStop(): void {
 // ─── Settings ───
 
 function initSettingsForm(): void {
-  const inputs = ['input-workers', 'input-num-images', 'input-negative', 'input-folder', 'input-prefix', 'input-suffix', 'input-filename-pattern', 'input-per-prompt-folders'];
+  const inputs = [
+    'input-workers',
+    'input-num-images',
+    'input-negative',
+    'input-folder',
+    'input-prefix',
+    'input-suffix',
+    'input-filename-pattern',
+    'input-per-prompt-folders',
+  ];
   for (const id of inputs) {
     $(id).addEventListener('change', saveSettings);
   }
@@ -164,12 +177,14 @@ function loadSettings(): void {
     if (!s) return;
     if (s.workerCount) $<HTMLInputElement>('input-workers').value = s.workerCount;
     if (s.numImages) $<HTMLInputElement>('input-num-images').value = s.numImages;
-    if (s.negativePrompt !== undefined) $<HTMLTextAreaElement>('input-negative').value = s.negativePrompt;
+    if (s.negativePrompt !== undefined)
+      $<HTMLTextAreaElement>('input-negative').value = s.negativePrompt;
     if (s.folderName !== undefined) $<HTMLInputElement>('input-folder').value = s.folderName;
     if (s.prefix !== undefined) $<HTMLInputElement>('input-prefix').value = s.prefix;
     if (s.suffix !== undefined) $<HTMLInputElement>('input-suffix').value = s.suffix;
     if (s.filenamePattern) $<HTMLSelectElement>('input-filename-pattern').value = s.filenamePattern;
-    if (s.perPromptFolders !== undefined) $<HTMLInputElement>('input-per-prompt-folders').checked = s.perPromptFolders === 'true';
+    if (s.perPromptFolders !== undefined)
+      $<HTMLInputElement>('input-per-prompt-folders').checked = s.perPromptFolders === 'true';
   });
 }
 
@@ -227,7 +242,9 @@ function initLogActions(): void {
   const filterBar = document.getElementById('log-filter-bar')!;
   for (const btn of filterBar.querySelectorAll<HTMLButtonElement>('.filter-btn[data-filter]')) {
     btn.addEventListener('click', () => {
-      filterBar.querySelectorAll('.filter-btn[data-filter]').forEach(b => b.classList.remove('active'));
+      filterBar
+        .querySelectorAll('.filter-btn[data-filter]')
+        .forEach((b) => b.classList.remove('active'));
       btn.classList.add('active');
       currentFilter = btn.dataset.filter!;
       if (cachedState) renderLogs(cachedState);
@@ -250,14 +267,17 @@ function renderAll(state: AppState): void {
   updatePauseButton(state);
 
   // Update textarea from state on start
-  if (state.isRunning && $<HTMLTextAreaElement>('input-prompts').value.split('\n').filter(Boolean).length === 0) {
+  if (
+    state.isRunning &&
+    $<HTMLTextAreaElement>('input-prompts').value.split('\n').filter(Boolean).length === 0
+  ) {
     $<HTMLTextAreaElement>('input-prompts').value = state.prompts.join('\n');
   }
 }
 
 function renderConnectionBadge(state: AppState): void {
   const badge = $('connection-badge');
-  const online = state.workers.some(w => w.frameId !== null);
+  const online = state.workers.some((w) => w.frameId !== null);
   badge.textContent = online ? '◉ Online' : '◉ Offline';
   badge.className = online ? 'online' : 'offline';
 }
@@ -283,17 +303,21 @@ function updatePauseButton(state: AppState): void {
 
 function renderPromptList(state: AppState): void {
   const ul = $('prompt-list');
-  const show = state.isRunning || state.promptStatuses.some(s => s !== 'pending');
+  const show = state.isRunning || state.promptStatuses.some((s) => s !== 'pending');
 
   if (!show || state.prompts.length === 0) {
     ul.innerHTML = '';
     return;
   }
 
-  const pendingCount = state.promptStatuses.filter(s => s === 'pending').length;
-  const statusText = pendingCount > 0 ? `${state.currentIndex}/${state.prompts.length}` : `${state.prompts.length}/${state.prompts.length}`;
+  const pendingCount = state.promptStatuses.filter((s) => s === 'pending').length;
+  const statusText =
+    pendingCount > 0
+      ? `${state.currentIndex}/${state.prompts.length}`
+      : `${state.prompts.length}/${state.prompts.length}`;
 
-  ul.innerHTML = `<li style="font-size:10px;color:var(--text-dim);padding:4px 10px;border-bottom:1px solid var(--border);">${statusText}</li>` +
+  ul.innerHTML =
+    `<li style="font-size:10px;color:var(--text-dim);padding:4px 10px;border-bottom:1px solid var(--border);">${statusText}</li>` +
     state.prompts
       .map((p, i) => {
         const status = state.promptStatuses[i] || 'pending';
@@ -304,7 +328,12 @@ function renderPromptList(state: AppState): void {
           failed: '✗',
         };
         const icon = iconMap[status] || '○';
-        return `<li><span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p)}</span></li>`;
+        const wIdx = state.promptWorkers?.[i];
+        const tag =
+          wIdx !== undefined && wIdx !== null
+            ? `<span class="worker-tag wtag-${wIdx}" style="font-size: 8px; padding: 0.5px 3.5px; border-radius: 2px;">w${wIdx}</span>`
+            : '';
+        return `<li><span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p)}</span>${tag}</li>`;
       })
       .join('');
 }
@@ -314,7 +343,7 @@ function renderLogs(state: AppState): void {
 
   let entries = [...state.logs];
   if (currentFilter !== 'all') {
-    entries = entries.filter(e => e.type === currentFilter);
+    entries = entries.filter((e) => e.type === currentFilter);
   }
   entries.reverse();
 
@@ -324,12 +353,15 @@ function renderLogs(state: AppState): void {
   }
 
   ul.innerHTML = entries
-    .map(e => {
+    .map((e) => {
       let cls = `log-${e.type}`;
       if (e.workerIndex !== undefined && e.workerIndex >= 0 && e.workerIndex <= 7) {
         cls += ` log-worker-${e.workerIndex}`;
       }
-      const tag = e.workerIndex !== undefined ? `<span class="worker-tag wtag-${e.workerIndex}">w${e.workerIndex}</span>` : '';
+      const tag =
+        e.workerIndex !== undefined
+          ? `<span class="worker-tag wtag-${e.workerIndex}">w${e.workerIndex}</span>`
+          : '';
       return `<li class="${cls}"><span class="log-text">${escapeHtml(e.text)}</span>${tag}</li>`;
     })
     .join('');
@@ -348,11 +380,11 @@ function renderStats(state: AppState): void {
   const totalImages = stats.reduce((a, s) => a + s.imagesGenerated, 0);
   const totalErrors = stats.reduce((a, s) => a + s.errors, 0);
 
-  const avgTimes = stats.map(s => ({
+  const avgTimes = stats.map((s) => ({
     workerIndex: s.workerIndex,
     avg: s.promptsCompleted > 0 ? s.totalTimeMs / s.promptsCompleted : 0,
   }));
-  const maxAvg = Math.max(...avgTimes.map(a => a.avg), 1);
+  const maxAvg = Math.max(...avgTimes.map((a) => a.avg), 1);
 
   const html = `
     <div class="stat-card">
@@ -363,14 +395,19 @@ function renderStats(state: AppState): void {
       <span class="stat-label">Images</span>
       <span class="stat-value">${totalImages}</span>
     </div>
-    ${totalErrors > 0 ? `
+    ${
+      totalErrors > 0
+        ? `
     <div class="stat-card">
       <span class="stat-label">Errors</span>
       <span class="stat-value">${totalErrors}</span>
-    </div>` : ''}
-    ${avgTimes.map(a => {
-      const pct = maxAvg > 0 ? (a.avg / maxAvg) * 100 : 0;
-      return `
+    </div>`
+        : ''
+    }
+    ${avgTimes
+      .map((a) => {
+        const pct = maxAvg > 0 ? (a.avg / maxAvg) * 100 : 0;
+        return `
     <div class="stat-card">
       <span class="stat-label">W${a.workerIndex}</span>
       <div class="mini-chart">
@@ -380,7 +417,8 @@ function renderStats(state: AppState): void {
         <span class="stat-value">${(a.avg / 1000).toFixed(1)}s</span>
       </div>
     </div>`;
-    }).join('')}
+      })
+      .join('')}
   `;
 
   panel.innerHTML = html;
