@@ -47,6 +47,9 @@ interface AppState {
   logs: LogEntry[];
   workerStats: WorkerStat[];
   nextWorkerIndex: number;
+  foregroundQueue: number[];
+  foregroundDwellMs: number;
+  isRotating: boolean;
 }
 
 function createInitialState(): AppState {
@@ -69,6 +72,9 @@ function createInitialState(): AppState {
     logs: [],
     workerStats: [],
     nextWorkerIndex: 0,
+    foregroundQueue: [],
+    foregroundDwellMs: 3000,
+    isRotating: false,
   };
 }
 
