@@ -930,7 +930,9 @@ button:focus-visible {
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition:
+    background 0.15s,
+    border-color 0.15s;
   font-family: inherit;
 }
 
@@ -994,7 +996,7 @@ button:focus-visible {
 }
 
 .upsell-features li::before {
-  content: "\2713";
+  content: '\2713';
   color: #4caf50;
   font-weight: 700;
   flex-shrink: 0;
@@ -1064,4 +1066,18 @@ button:focus-visible {
 
 .user-bar .btn-text {
   font-size: 11px;
+}
+
+/* Premium Banner */
+
+.premium-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(245, 200, 66, 0.15), rgba(230, 168, 23, 0.1));
+  border-bottom: 1px solid rgba(245, 200, 66, 0.3);
+  font-size: 11px;
+  color: #f5c842;
+  font-weight: 500;
 }

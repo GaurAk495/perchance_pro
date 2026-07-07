@@ -117,23 +117,22 @@ async function initAuth(): Promise<void> {
 
 function showAuthScreen(authState: AuthState): void {
   const loginScreen = document.getElementById('auth-login');
-  const upsellScreen = document.getElementById('auth-upsell');
   const dashboardScreen = document.getElementById('auth-dashboard');
+  const premiumBanner = document.getElementById('premium-banner');
 
-  if (!loginScreen || !upsellScreen || !dashboardScreen) return;
+  if (!loginScreen || !dashboardScreen) return;
 
   loginScreen.style.display = 'none';
-  upsellScreen.style.display = 'none';
   dashboardScreen.style.display = 'none';
 
   if (!authState.user) {
     loginScreen.style.display = 'flex';
-  } else if (!authState.premium) {
-    upsellScreen.style.display = 'flex';
-    populateUpsell(authState.user);
   } else {
     dashboardScreen.style.display = 'flex';
-    populateUserBar(authState.user);
+    populateUserBar(authState.user, authState.premium);
+    if (premiumBanner) {
+      premiumBanner.style.display = authState.premium ? 'none' : 'flex';
+    }
   }
 }
 
@@ -149,14 +148,18 @@ function populateUpsell(user: AuthUser): void {
   }
 }
 
-function populateUserBar(user: AuthUser): void {
+function populateUserBar(user: AuthUser, premium: boolean): void {
   const avatar = document.getElementById('user-avatar') as HTMLImageElement | null;
   const name = document.getElementById('user-name');
+  const badge = document.getElementById('user-premium-badge');
   if (avatar && user.photoURL) {
     avatar.src = user.photoURL;
   }
   if (name) {
     name.textContent = user.displayName || user.email;
+  }
+  if (badge) {
+    badge.style.display = premium ? 'inline-flex' : 'none';
   }
 }
 
