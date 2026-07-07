@@ -45,3 +45,31 @@ export interface DownloadsCompleteMessage {
 export type ContentToBackgroundMessage = DownloadImagesMessage;
 
 export type BackgroundToContentMessage = DownloadsCompleteMessage;
+
+// ─── Auth Messages ───
+
+export interface GoogleSignInMessage {
+  readonly action: 'GOOGLE_SIGN_IN';
+}
+
+export interface SignOutMessage {
+  readonly action: 'SIGN_OUT';
+}
+
+export interface GetAuthStateMessage {
+  readonly action: 'GET_AUTH_STATE';
+}
+
+export interface RefreshPremiumMessage {
+  readonly action: 'REFRESH_PREMIUM';
+}
+
+export interface AuthStateResponse {
+  user: {
+    uid: string;
+    displayName: string;
+    email: string;
+    photoURL: string;
+  } | null;
+  premium: boolean;
+}
