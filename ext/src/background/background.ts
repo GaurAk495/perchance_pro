@@ -36,6 +36,7 @@ interface AppState {
   negativePrompt: string;
   numImages: number;
   workerCount: number;
+  artStyle: string;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
   promptWorkers: (number | null)[];
@@ -49,6 +50,7 @@ interface AppState {
   nextWorkerIndex: number;
   foregroundIntervalMs: number;
   rotationIndex: number;
+  runStartedAt: number;
 }
 
 function createInitialState(): AppState {
@@ -60,6 +62,7 @@ function createInitialState(): AppState {
     negativePrompt: '',
     numImages: 1,
     workerCount: DEFAULTS.workerCount,
+    artStyle: 'ref:optionKeyName:𝗡𝗼 𝘀𝘁𝘆𝗹𝗲',
     workers: [],
     promptStatuses: [],
     promptWorkers: [],
@@ -73,6 +76,7 @@ function createInitialState(): AppState {
     nextWorkerIndex: 0,
     foregroundIntervalMs: DEFAULTS.foregroundIntervalMs,
     rotationIndex: 0,
+    runStartedAt: 0,
   };
 }
 
@@ -246,6 +250,7 @@ function assignNextPrompt(worker: WorkerTab): void {
       prompt: finalPrompt,
       negativePrompt: state.negativePrompt,
       numImages: state.numImages,
+      artStyle: state.artStyle,
     },
     { frameId: worker.frameId! },
     () => {
@@ -314,14 +319,14 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
       log(`Download failed: ${chrome.runtime.lastError.message}`, 'error', worker.workerIndex);
     }
     worker.receivedCount++;
+    const stat = getOrCreateWorkerStat(worker.workerIndex);
+    stat.imagesGenerated++;
     log(`[${promptIdx + 1}] ${filename}`, 'success', worker.workerIndex);
     broadcastState();
 
     if (worker.expectedCount > 0 && worker.receivedCount >= worker.expectedCount) {
       const elapsed = Date.now() - worker.promptStartedAt;
-      const stat = getOrCreateWorkerStat(worker.workerIndex);
       stat.promptsCompleted++;
-      stat.imagesGenerated += worker.receivedCount;
       stat.totalTimeMs += elapsed;
 
       state.promptStatuses[promptIdx] = 'completed';
@@ -438,6 +443,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.negativePrompt = (msg.negativePrompt as string) || '';
     state.numImages = (msg.numImages as number) || 1;
     state.workerCount = (msg.workerCount as number) || DEFAULTS.workerCount;
+    state.artStyle = (msg.artStyle as string) || '';
     state.folderName = (msg.folderName as string) || '';
     state.prefix = (msg.prefix as string) || '';
     state.suffix = (msg.suffix as string) || '';
@@ -451,6 +457,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.workerStats = [];
     state.nextWorkerIndex = 0;
     state.rotationIndex = 0;
+    state.runStartedAt = Date.now();
     stopRotation();
 
     log(

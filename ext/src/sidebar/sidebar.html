@@ -28,12 +28,6 @@
       <div id="tab-content">
         <!-- ─── Dashboard ─── -->
         <div class="tab-panel active" id="dashboard-panel" data-tab="dashboard">
-          <div class="btn-group">
-            <button id="btn-start" class="btn btn-primary">▶ Start</button>
-            <button id="btn-pause" class="btn btn-secondary" disabled>⏸ Pause</button>
-            <button id="btn-stop" class="btn btn-danger" disabled>⏹ Stop</button>
-          </div>
-
           <label>
             Prompt List
             <textarea id="input-prompts" placeholder="Enter prompts, one per line..."></textarea>
@@ -43,6 +37,32 @@
             <button id="btn-import" class="btn btn-secondary">📂 Import</button>
             <button id="btn-clear" class="btn btn-secondary">🗑 Clear</button>
           </div>
+
+          <div class="dashboard-quick-settings">
+            <label>
+              Art Style
+              <select id="input-art-style-dashboard"></select>
+            </label>
+            <label>
+              Images / Prompt
+              <input type="number" id="input-num-images-dashboard" min="1" max="20" value="1" />
+            </label>
+            <label class="form-row-full">
+              Negative Prompt
+              <textarea
+                id="input-negative-dashboard"
+                rows="1"
+                placeholder="Optional negative prompt..."
+              ></textarea>
+            </label>
+          </div>
+
+          <div class="btn-group">
+            <button id="btn-start" class="btn btn-primary">▶ Start</button>
+            <button id="btn-pause" class="btn btn-secondary" disabled>⏸ Pause</button>
+            <button id="btn-stop" class="btn btn-danger" disabled>⏹ Stop</button>
+          </div>
+
           <div id="prompt-list"></div>
         </div>
 
@@ -59,16 +79,6 @@
                 <option value="5">5</option>
                 <option value="6">6</option>
               </select>
-            </label>
-
-            <label>
-              Images per Prompt
-              <input type="number" id="input-num-images" min="1" max="20" value="1" />
-            </label>
-
-            <label class="form-row-full">
-              Negative Prompt
-              <textarea id="input-negative" placeholder="Optional negative prompt..."></textarea>
             </label>
 
             <label>

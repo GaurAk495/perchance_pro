@@ -16,14 +16,19 @@ setInterval(() => {
 
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.action === 'CMD_RUN_PROMPT') {
-        runPrompt(msg.prompt, msg.negativePrompt || '', msg.numImages || 1);
+        runPrompt(msg.prompt, msg.negativePrompt || '', msg.numImages || 1, msg.artStyle || '');
         sendResponse({ status: 'started' });
       }
     });
   }
 }, 1000);
 
-function runPrompt(promptText: string, negativePrompt: string, numImages: number): void {
+function runPrompt(
+  promptText: string,
+  negativePrompt: string,
+  numImages: number,
+  artStyle: string
+): void {
   const promptEl = document.querySelector<HTMLTextAreaElement>('textarea[data-name="description"]');
   if (promptEl) {
     promptEl.value = promptText;
@@ -45,6 +50,18 @@ function runPrompt(promptText: string, negativePrompt: string, numImages: number
     numInput.value = String(numImages);
     numInput.dispatchEvent(new Event('input', { bubbles: true }));
     numInput.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  if (artStyle) {
+    const artStyleSelect = document.querySelector<HTMLSelectElement>(
+      'select[data-name="artStyle"]'
+    );
+    console.log('debug', artStyleSelect, artStyle);
+    if (artStyleSelect) {
+      artStyleSelect.value = artStyle;
+      artStyleSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      artStyleSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
   }
 
   const outputArea = document.getElementById('outputAreaEl');
