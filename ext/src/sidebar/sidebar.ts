@@ -4,6 +4,8 @@ import {
   type FilenamePatternKey,
   FILENAME_PATTERN_LABELS,
 } from '../shared/constants.ts';
+import { googleSignIn, signOut, getAuthState, setAuthPremium } from '../auth/auth-manager.ts';
+import { refreshPremium } from '../auth/premium-checker.ts';
 
 // ─── Types ───
 
@@ -88,11 +90,7 @@ let statsTimer: ReturnType<typeof setInterval> | null = null;
 // ─── Init ───
 
 async function initAuth(): Promise<void> {
-  const authState = await new Promise<AuthState>((resolve) => {
-    chrome.runtime.sendMessage({ action: 'GET_AUTH_STATE' }, (response: AuthState) => {
-      resolve(response ?? { user: null, premium: false });
-    });
-  });
+  const authState = await getAuthState();
 
   showAuthScreen(authState);
 
@@ -169,15 +167,10 @@ async function handleGoogleSignIn(): Promise<void> {
     btn.textContent = 'Signing in...';
   }
 
-  const authState = await new Promise<AuthState>((resolve) => {
-    chrome.runtime.sendMessage({ action: 'GOOGLE_SIGN_IN' }, (response: AuthState) => {
-      resolve(response ?? { user: null, premium: false });
-    });
-  });
-
-  showAuthScreen(authState);
-
-  if (!authState.user) {
+  try {
+    const authState = await googleSignIn();
+    showAuthScreen(authState);
+  } catch {
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Sign in with Google';
@@ -186,10 +179,7 @@ async function handleGoogleSignIn(): Promise<void> {
 }
 
 async function handleSignOut(): Promise<void> {
-  await new Promise<void>((resolve) => {
-    chrome.runtime.sendMessage({ action: 'SIGN_OUT' }, () => resolve());
-  });
-
+  await signOut();
   showAuthScreen({ user: null, premium: false });
 }
 
@@ -197,19 +187,15 @@ async function handleRefreshPremium(): Promise<void> {
   const btn = document.getElementById('btn-refresh-premium') as HTMLButtonElement | null;
   if (btn) btn.disabled = true;
 
-  await new Promise<void>((resolve) => {
-    chrome.runtime.sendMessage({ action: 'REFRESH_PREMIUM' }, () => resolve());
-  });
+  const current = await getAuthState();
+  if (current.user) {
+    const premium = await refreshPremium(current.user.uid);
+    await setAuthPremium(premium);
+    const updated = await getAuthState();
+    showAuthScreen(updated);
+  }
 
   if (btn) btn.disabled = false;
-
-  const authState = await new Promise<AuthState>((resolve) => {
-    chrome.runtime.sendMessage({ action: 'GET_AUTH_STATE' }, (response: AuthState) => {
-      resolve(response ?? { user: null, premium: false });
-    });
-  });
-
-  showAuthScreen(authState);
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -410,7 +396,7 @@ function initImportExport(): void {
 
   chrome.storage.local.get(['savedPrompts'], (res) => {
     if (res.savedPrompts) {
-      textarea.value = res.savedPrompts;
+      textarea.value = res.savedPrompts as string;
     }
   });
 }

@@ -1,6 +1,4 @@
 import { DEFAULTS, FILENAME_PATTERNS, type FilenamePatternKey } from '../shared/constants.ts';
-import { googleSignIn, signOut, getAuthState, setAuthPremium } from '../auth/auth-manager.ts';
-import { refreshPremium } from '../auth/premium-checker.ts';
 
 interface WorkerTab {
   tabId: number;
@@ -530,43 +528,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     log('Logs cleared.', 'info');
     saveState();
     sendResponse({ status: 'cleared' });
-  } else if (msg.action === 'GOOGLE_SIGN_IN') {
-    googleSignIn()
-      .then((authState) => {
-        sendResponse(authState);
-      })
-      .catch((err) => {
-        const message = err instanceof Error ? err.message : 'Sign in failed';
-        log(`Google sign-in failed: ${message}`, 'error');
-        sendResponse({ user: null, premium: false });
-      });
-    return true;
-  } else if (msg.action === 'SIGN_OUT') {
-    signOut().then(() => {
-      log('User signed out.', 'info');
-      sendResponse({ status: 'signed_out' });
-    });
-    return true;
   } else if (msg.action === 'GET_AUTH_STATE') {
-    getAuthState().then((authState) => {
-      sendResponse(authState);
+    chrome.storage.local.get('authState', (res) => {
+      sendResponse(res.authState ?? { user: null, premium: false });
     });
-    return true;
-  } else if (msg.action === 'REFRESH_PREMIUM') {
-    getAuthState()
-      .then((authState) => {
-        if (authState.user) {
-          return refreshPremium(authState.user.uid).then((premium) => {
-            return setAuthPremium(premium).then(() => {
-              sendResponse({ premium });
-            });
-          });
-        }
-        sendResponse({ premium: false });
-      })
-      .catch(() => {
-        sendResponse({ premium: false });
-      });
     return true;
   }
 
