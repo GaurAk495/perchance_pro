@@ -60,6 +60,18 @@ interface AppState {
   runStartedAt: number;
 }
 
+interface AuthUser {
+  readonly uid: string;
+  readonly displayName: string;
+  readonly email: string;
+  readonly photoURL: string;
+}
+
+interface AuthState {
+  user: AuthUser | null;
+  premium: boolean;
+}
+
 // ─── DOM refs ───
 
 const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
@@ -75,7 +87,133 @@ let statsTimer: ReturnType<typeof setInterval> | null = null;
 
 // ─── Init ───
 
-document.addEventListener('DOMContentLoaded', () => {
+async function initAuth(): Promise<void> {
+  const authState = await new Promise<AuthState>((resolve) => {
+    chrome.runtime.sendMessage({ action: 'GET_AUTH_STATE' }, (response: AuthState) => {
+      resolve(response ?? { user: null, premium: false });
+    });
+  });
+
+  showAuthScreen(authState);
+
+  const loginBtn = document.getElementById('btn-google-signin');
+  if (loginBtn) {
+    loginBtn.addEventListener('click', handleGoogleSignIn);
+  }
+
+  const signOutBtn = document.getElementById('btn-signout');
+  if (signOutBtn) {
+    signOutBtn.addEventListener('click', handleSignOut);
+  }
+
+  const signOutUpsellBtn = document.getElementById('btn-signout-upsell');
+  if (signOutUpsellBtn) {
+    signOutUpsellBtn.addEventListener('click', handleSignOut);
+  }
+
+  const refreshBtn = document.getElementById('btn-refresh-premium');
+  if (refreshBtn) {
+    refreshBtn.addEventListener('click', handleRefreshPremium);
+  }
+}
+
+function showAuthScreen(authState: AuthState): void {
+  const loginScreen = document.getElementById('auth-login');
+  const upsellScreen = document.getElementById('auth-upsell');
+  const dashboardScreen = document.getElementById('auth-dashboard');
+
+  if (!loginScreen || !upsellScreen || !dashboardScreen) return;
+
+  loginScreen.style.display = 'none';
+  upsellScreen.style.display = 'none';
+  dashboardScreen.style.display = 'none';
+
+  if (!authState.user) {
+    loginScreen.style.display = 'flex';
+  } else if (!authState.premium) {
+    upsellScreen.style.display = 'flex';
+    populateUpsell(authState.user);
+  } else {
+    dashboardScreen.style.display = 'flex';
+    populateUserBar(authState.user);
+  }
+}
+
+function populateUpsell(user: AuthUser): void {
+  const avatar = document.getElementById('upsell-avatar') as HTMLImageElement | null;
+  const name = document.getElementById('upsell-name');
+  if (avatar && user.photoURL) {
+    avatar.src = user.photoURL;
+    avatar.style.display = 'block';
+  }
+  if (name) {
+    name.textContent = user.displayName || user.email;
+  }
+}
+
+function populateUserBar(user: AuthUser): void {
+  const avatar = document.getElementById('user-avatar') as HTMLImageElement | null;
+  const name = document.getElementById('user-name');
+  if (avatar && user.photoURL) {
+    avatar.src = user.photoURL;
+  }
+  if (name) {
+    name.textContent = user.displayName || user.email;
+  }
+}
+
+async function handleGoogleSignIn(): Promise<void> {
+  const btn = document.getElementById('btn-google-signin') as HTMLButtonElement | null;
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+  }
+
+  const authState = await new Promise<AuthState>((resolve) => {
+    chrome.runtime.sendMessage({ action: 'GOOGLE_SIGN_IN' }, (response: AuthState) => {
+      resolve(response ?? { user: null, premium: false });
+    });
+  });
+
+  showAuthScreen(authState);
+
+  if (!authState.user) {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = 'Sign in with Google';
+    }
+  }
+}
+
+async function handleSignOut(): Promise<void> {
+  await new Promise<void>((resolve) => {
+    chrome.runtime.sendMessage({ action: 'SIGN_OUT' }, () => resolve());
+  });
+
+  showAuthScreen({ user: null, premium: false });
+}
+
+async function handleRefreshPremium(): Promise<void> {
+  const btn = document.getElementById('btn-refresh-premium') as HTMLButtonElement | null;
+  if (btn) btn.disabled = true;
+
+  await new Promise<void>((resolve) => {
+    chrome.runtime.sendMessage({ action: 'REFRESH_PREMIUM' }, () => resolve());
+  });
+
+  if (btn) btn.disabled = false;
+
+  const authState = await new Promise<AuthState>((resolve) => {
+    chrome.runtime.sendMessage({ action: 'GET_AUTH_STATE' }, (response: AuthState) => {
+      resolve(response ?? { user: null, premium: false });
+    });
+  });
+
+  showAuthScreen(authState);
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+  await initAuth();
   initTabs();
   initDashboardActions();
   initSettingsForm();
