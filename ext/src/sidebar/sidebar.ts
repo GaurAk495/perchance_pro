@@ -254,13 +254,23 @@ function initDashboardActions(): void {
   $<HTMLButtonElement>('btn-stop').addEventListener('click', handleStop);
 }
 
-function handleStart(): void {
+async function handleStart(): Promise<void> {
   const textarea = $<HTMLTextAreaElement>('input-prompts');
   const prompts = textarea.value
     .split('\n')
     .map((s) => s.trim())
     .filter(Boolean);
   if (!prompts.length) return;
+
+  const authState = await getAuthState();
+  if (!authState.premium) {
+    const banner = document.getElementById('premium-banner');
+    if (banner) {
+      banner.style.display = 'flex';
+      banner.scrollIntoView({ behavior: 'smooth' });
+    }
+    return;
+  }
 
   chrome.runtime.sendMessage({
     action: 'START',

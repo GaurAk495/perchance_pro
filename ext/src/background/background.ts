@@ -439,35 +439,45 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const prompts = msg.prompts as string[];
     if (!prompts.length) return false;
 
-    state.prompts = prompts;
-    state.negativePrompt = (msg.negativePrompt as string) || '';
-    state.numImages = (msg.numImages as number) || 1;
-    state.workerCount = (msg.workerCount as number) || DEFAULTS.workerCount;
-    state.artStyle = (msg.artStyle as string) || '';
-    state.folderName = (msg.folderName as string) || '';
-    state.prefix = (msg.prefix as string) || '';
-    state.suffix = (msg.suffix as string) || '';
-    state.filenamePattern = (msg.filenamePattern as FilenamePatternKey) || DEFAULTS.filenamePattern;
-    state.perPromptFolders = (msg.perPromptFolders as boolean) ?? DEFAULTS.perPromptFolders;
-    state.currentIndex = 0;
-    state.isRunning = true;
-    state.isPaused = false;
-    state.promptStatuses = prompts.map(() => 'pending' as PromptStatus);
-    state.promptWorkers = prompts.map(() => null);
-    state.workerStats = [];
-    state.nextWorkerIndex = 0;
-    state.rotationIndex = 0;
-    state.runStartedAt = Date.now();
-    stopRotation();
+    chrome.storage.local.get('authState', (authData) => {
+      const authState = authData.authState as { user: unknown; premium: boolean } | undefined;
+      if (!authState?.premium) {
+        sendResponse({ status: 'blocked', reason: 'Premium required' });
+        return;
+      }
 
-    log(
-      `Started (${prompts.length} prompts, ${state.numImages} img/ea, ${state.workerCount} workers)`,
-      'info'
-    );
-    saveState();
+      state.prompts = prompts;
+      state.negativePrompt = (msg.negativePrompt as string) || '';
+      state.numImages = (msg.numImages as number) || 1;
+      state.workerCount = (msg.workerCount as number) || DEFAULTS.workerCount;
+      state.artStyle = (msg.artStyle as string) || '';
+      state.folderName = (msg.folderName as string) || '';
+      state.prefix = (msg.prefix as string) || '';
+      state.suffix = (msg.suffix as string) || '';
+      state.filenamePattern =
+        (msg.filenamePattern as FilenamePatternKey) || DEFAULTS.filenamePattern;
+      state.perPromptFolders = (msg.perPromptFolders as boolean) ?? DEFAULTS.perPromptFolders;
+      state.currentIndex = 0;
+      state.isRunning = true;
+      state.isPaused = false;
+      state.promptStatuses = prompts.map(() => 'pending' as PromptStatus);
+      state.promptWorkers = prompts.map(() => null);
+      state.workerStats = [];
+      state.nextWorkerIndex = 0;
+      state.rotationIndex = 0;
+      state.runStartedAt = Date.now();
+      stopRotation();
 
-    spawnWorkers(state.workerCount);
-    sendResponse({ status: 'started' });
+      log(
+        `Started (${prompts.length} prompts, ${state.numImages} img/ea, ${state.workerCount} workers)`,
+        'info'
+      );
+      saveState();
+
+      spawnWorkers(state.workerCount);
+      sendResponse({ status: 'started' });
+    });
+    return true;
   } else if (msg.action === 'STOP') {
     state.isRunning = false;
     state.isPaused = false;
