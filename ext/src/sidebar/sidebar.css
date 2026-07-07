@@ -878,6 +878,10 @@ button:focus-visible {
   box-sizing: border-box;
 }
 
+#auth-dashboard {
+  padding: 0;
+}
+
 .auth-container {
   display: flex;
   flex-direction: column;

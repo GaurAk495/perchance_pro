@@ -1,9 +1,4 @@
-import {
-  DEFAULTS,
-  ART_STLYE,
-  type FilenamePatternKey,
-  FILENAME_PATTERN_LABELS,
-} from '../shared/constants.ts';
+import { DEFAULTS, ART_STLYE, type FilenamePatternKey } from '../shared/constants.ts';
 import { googleSignIn, signOut, getAuthState, setAuthPremium } from '../auth/auth-manager.ts';
 import { refreshPremium } from '../auth/premium-checker.ts';
 
@@ -119,6 +114,7 @@ function showAuthScreen(authState: AuthState): void {
   const loginScreen = document.getElementById('auth-login');
   const dashboardScreen = document.getElementById('auth-dashboard');
   const premiumBanner = document.getElementById('premium-banner');
+  const loginBtn = document.getElementById('btn-google-signin') as HTMLButtonElement | null;
 
   if (!loginScreen || !dashboardScreen) return;
 
@@ -127,6 +123,10 @@ function showAuthScreen(authState: AuthState): void {
 
   if (!authState.user) {
     loginScreen.style.display = 'flex';
+    if (loginBtn) {
+      loginBtn.disabled = false;
+      loginBtn.textContent = 'Sign in with Google';
+    }
   } else {
     dashboardScreen.style.display = 'flex';
     populateUserBar(authState.user, authState.premium);
