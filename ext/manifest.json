@@ -3,7 +3,7 @@
   "name": "Perchance Pro",
   "version": "1.0.0",
   "description": "Bulk image generation automation for Perchance",
-  "permissions": ["storage", "downloads", "sidePanel"],
+  "permissions": ["storage", "downloads", "sidePanel", "identity"],
   "host_permissions": ["https://*.perchance.org/*"],
   "background": {
     "service_worker": "background.js"
