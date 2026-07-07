@@ -1,5 +1,9 @@
-import { auth } from './firebase-config.ts';
-import { GoogleAuthProvider, signInWithCredential, signOut as firebaseSignOut } from 'firebase/auth';
+import {
+  auth,
+  signInWithCredential,
+  GoogleAuthProvider,
+  firebaseSignOut,
+} from './firebase-config.ts';
 import { checkPremium } from './premium-checker.ts';
 
 export interface AuthUser {
@@ -17,31 +21,17 @@ export interface AuthState {
 const STORAGE_KEY = 'authState';
 
 export async function googleSignIn(): Promise<AuthState> {
-  const redirectUrl = `https://${chrome.runtime.id}.chromiumapp.org/`;
-
-  const code = await new Promise<string>((resolve, reject) => {
-    chrome.identity.launchWebAuthFlow(
-      {
-        url: buildGoogleOAuthUrl(redirectUrl),
-        interactive: true,
-      },
-      (responseUrl) => {
-        if (chrome.runtime.lastError || !responseUrl) {
-          reject(new Error(chrome.runtime.lastError?.message ?? 'OAuth flow failed'));
-          return;
-        }
-        const url = new URL(responseUrl);
-        const code = url.searchParams.get('code');
-        if (!code) {
-          reject(new Error('No authorization code in response'));
-          return;
-        }
-        resolve(code);
+  const token = await new Promise<string>((resolve, reject) => {
+    chrome.identity.getAuthToken({ interactive: true }, (token) => {
+      if (chrome.runtime.lastError || !token) {
+        reject(new Error(chrome.runtime.lastError?.message ?? 'Google login failed'));
+        return;
       }
-    );
+      resolve(token);
+    });
   });
 
-  const credential = GoogleAuthProvider.credential(null, code);
+  const credential = GoogleAuthProvider.credential(null, token);
   const userCredential = await signInWithCredential(auth, credential);
   const firebaseUser = userCredential.user;
 
@@ -61,6 +51,22 @@ export async function googleSignIn(): Promise<AuthState> {
 }
 
 export async function signOut(): Promise<void> {
+  const token = await new Promise<string | null>((resolve) => {
+    chrome.identity.getAuthToken({ interactive: false }, (token) => {
+      resolve(token ?? null);
+    });
+  });
+
+  if (token) {
+    chrome.identity.removeCachedAuthToken({ token });
+    try {
+      await fetch(`https://accounts.google.com/o/oauth2/revoke?token=${token}`);
+    } catch {
+      // ignore revoke errors
+    }
+  }
+
+  chrome.identity.clearAllCachedAuthTokens(() => {});
   await firebaseSignOut(auth);
   await chrome.storage.local.remove(STORAGE_KEY);
 }
@@ -76,20 +82,4 @@ export async function setAuthPremium(premium: boolean): Promise<void> {
     const updated: AuthState = { ...current, premium };
     await chrome.storage.local.set({ [STORAGE_KEY]: updated });
   }
-}
-
-function buildGoogleOAuthUrl(redirectUrl: string): string {
-  const clientId = 'YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com';
-  const scopes = ['openid', 'email', 'profile'];
-
-  return (
-    'https://accounts.google.com/o/oauth2/v2/auth?' +
-    new URLSearchParams({
-      client_id: clientId,
-      redirect_uri: redirectUrl,
-      response_type: 'code',
-      scope: scopes.join(' '),
-      prompt: 'consent',
-    }).toString()
-  );
 }
