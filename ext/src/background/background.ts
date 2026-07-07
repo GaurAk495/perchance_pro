@@ -531,31 +531,43 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     saveState();
     sendResponse({ status: 'cleared' });
   } else if (msg.action === 'GOOGLE_SIGN_IN') {
-    try {
-      const authState = await googleSignIn();
-      sendResponse(authState);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Sign in failed';
-      log(`Google sign-in failed: ${message}`, 'error');
-      sendResponse({ user: null, premium: false });
-    }
+    googleSignIn()
+      .then((authState) => {
+        sendResponse(authState);
+      })
+      .catch((err) => {
+        const message = err instanceof Error ? err.message : 'Sign in failed';
+        log(`Google sign-in failed: ${message}`, 'error');
+        sendResponse({ user: null, premium: false });
+      });
     return true;
   } else if (msg.action === 'SIGN_OUT') {
-    await signOut();
-    log('User signed out.', 'info');
-    sendResponse({ status: 'signed_out' });
+    signOut().then(() => {
+      log('User signed out.', 'info');
+      sendResponse({ status: 'signed_out' });
+    });
+    return true;
   } else if (msg.action === 'GET_AUTH_STATE') {
-    const authState = await getAuthState();
-    sendResponse(authState);
+    getAuthState().then((authState) => {
+      sendResponse(authState);
+    });
+    return true;
   } else if (msg.action === 'REFRESH_PREMIUM') {
-    const authState = await getAuthState();
-    if (authState.user) {
-      const premium = await refreshPremium(authState.user.uid);
-      await setAuthPremium(premium);
-      sendResponse({ premium });
-    } else {
-      sendResponse({ premium: false });
-    }
+    getAuthState()
+      .then((authState) => {
+        if (authState.user) {
+          return refreshPremium(authState.user.uid).then((premium) => {
+            return setAuthPremium(premium).then(() => {
+              sendResponse({ premium });
+            });
+          });
+        }
+        sendResponse({ premium: false });
+      })
+      .catch(() => {
+        sendResponse({ premium: false });
+      });
+    return true;
   }
 
   return true;
