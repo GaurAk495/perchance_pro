@@ -1,4 +1,6 @@
 import { DEFAULTS, FILENAME_PATTERNS, type FilenamePatternKey } from '../shared/constants.ts';
+import { disableFrom, togglePromptStatus, type PromptStatus } from '../shared/prompt-status.ts';
+import type { Prompt } from '../shared/types.ts';
 
 interface WorkerTab {
   tabId: number;
@@ -11,8 +13,6 @@ interface WorkerTab {
   promptStartedAt: number;
   tabCreatedAt: number;
 }
-
-type PromptStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 interface LogEntry {
   text: string;
@@ -29,7 +29,7 @@ interface WorkerStat {
 }
 
 interface AppState {
-  prompts: string[];
+  prompts: Prompt[];
   currentIndex: number;
   isRunning: boolean;
   isPaused: boolean;
@@ -217,8 +217,8 @@ function assignNextPrompt(worker: WorkerTab): void {
     return;
   }
 
-  const rawPrompt = state.prompts[idx];
-  if (!rawPrompt) {
+  const prompt = state.prompts[idx];
+  if (!prompt) {
     state.promptStatuses[idx] = 'failed';
     broadcastState();
     assignNextPrompt(worker);
@@ -235,10 +235,11 @@ function assignNextPrompt(worker: WorkerTab): void {
   state.promptWorkers[idx] = worker.workerIndex;
   broadcastState();
 
-  const finalPrompt = `${state.prefix}${rawPrompt}${state.suffix}`;
+  const finalPrompt = `${state.prefix}${prompt.text}${state.suffix}`;
+  const negative = prompt.negative ?? state.negativePrompt;
 
   log(
-    `[${idx + 1}/${state.prompts.length}] "${rawPrompt.substring(0, 40)}..."`,
+    `[${idx + 1}/${state.prompts.length}] "${prompt.text.substring(0, 40)}..."`,
     'info',
     worker.workerIndex
   );
@@ -248,7 +249,7 @@ function assignNextPrompt(worker: WorkerTab): void {
     {
       action: 'CMD_RUN_PROMPT',
       prompt: finalPrompt,
-      negativePrompt: state.negativePrompt,
+      negativePrompt: negative,
       numImages: state.numImages,
       artStyle: state.artStyle,
     },
@@ -306,7 +307,7 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
   const promptIdx = worker.currentPromptIndex;
   if (promptIdx === null) return;
 
-  const promptText = state.prompts[promptIdx] ?? 'unknown';
+  const promptText = state.prompts[promptIdx]?.text ?? 'unknown';
   const baseName = buildImageFilename(promptText, promptIdx, worker.receivedCount + 1);
   const folderParts: string[] = [];
   if (state.folderName) folderParts.push(state.folderName);
@@ -436,7 +437,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     broadcastState();
     sendResponse({ status: 'registered' });
   } else if (msg.action === 'START') {
-    const prompts = msg.prompts as string[];
+    const prompts = msg.prompts as Prompt[];
     if (!prompts.length) return false;
 
     chrome.storage.local.get('authState', (authData) => {
@@ -543,6 +544,26 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse(res.authState ?? { user: null, premium: false });
     });
     return true;
+  } else if (msg.action === 'SET_PROMPT_SKIPPED') {
+    if (!state.isRunning) {
+      sendResponse({ status: 'ignored' });
+      return false;
+    }
+    const index = msg.index as number;
+    if (index < 0 || index >= state.promptStatuses.length) return false;
+    state.promptStatuses = togglePromptStatus(state.promptStatuses, index, !!msg.skipped);
+    saveState();
+    sendResponse({ status: 'updated' });
+  } else if (msg.action === 'DISABLE_PROMPTS_FROM') {
+    if (!state.isRunning) {
+      sendResponse({ status: 'ignored' });
+      return false;
+    }
+    const index = msg.index as number;
+    if (index < 0 || index >= state.prompts.length) return false;
+    state.promptStatuses = disableFrom(state.promptStatuses, index);
+    saveState();
+    sendResponse({ status: 'updated' });
   }
 
   return true;

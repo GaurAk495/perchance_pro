@@ -1,12 +1,13 @@
 import { DEFAULTS, ART_STLYE, type FilenamePatternKey } from '../shared/constants.ts';
+import { parsePromptList, promptsToText, type PromptListFormat } from '../shared/prompt-parser.ts';
+import type { PromptStatus } from '../shared/prompt-status.ts';
+import type { Prompt } from '../shared/types.ts';
 import { googleSignIn, signOut, getAuthState, setAuthPremium } from '../auth/auth-manager.ts';
 import { refreshPremium } from '../auth/premium-checker.ts';
 
 // ─── Types ───
 
 type TabName = 'dashboard' | 'settings' | 'logs';
-
-type PromptStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 interface LogEntry {
   text: string;
@@ -35,7 +36,7 @@ interface WorkerTab {
 }
 
 interface AppState {
-  prompts: string[];
+  prompts: Prompt[];
   currentIndex: number;
   isRunning: boolean;
   isPaused: boolean;
@@ -80,6 +81,7 @@ let currentTab: TabName = 'dashboard';
 
 let cachedState: AppState | null = null;
 let currentFilter = 'all';
+let currentFormat: PromptListFormat = 'text';
 let statsTimer: ReturnType<typeof setInterval> | null = null;
 
 // ─── Init ───
@@ -208,6 +210,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initSettingsForm();
   initLogActions();
   initImportExport();
+  initPromptListActions();
   loadSettings();
 
   chrome.runtime.sendMessage({ action: 'GET_STATE' }, (state: AppState) => {
@@ -256,10 +259,7 @@ function initDashboardActions(): void {
 
 async function handleStart(): Promise<void> {
   const textarea = $<HTMLTextAreaElement>('input-prompts');
-  const prompts = textarea.value
-    .split('\n')
-    .map((s) => s.trim())
-    .filter(Boolean);
+  const prompts = parsePromptList(textarea.value, currentFormat);
   if (!prompts.length) return;
 
   const authState = await getAuthState();
@@ -389,11 +389,13 @@ function initImportExport(): void {
     input.addEventListener('change', () => {
       const file = input.files?.[0];
       if (!file) return;
+      const format: PromptListFormat = file.name.toLowerCase().endsWith('.csv') ? 'csv' : 'text';
       const reader = new FileReader();
       reader.onload = () => {
         const text = reader.result as string;
+        currentFormat = format;
         textarea.value = text;
-        chrome.storage.local.set({ savedPrompts: text });
+        chrome.storage.local.set({ savedPrompts: text, savedPromptsFormat: format });
       };
       reader.readAsText(file);
     });
@@ -407,9 +409,14 @@ function initImportExport(): void {
     chrome.runtime.sendMessage({ action: 'CLEAR' });
   });
 
-  chrome.storage.local.get(['savedPrompts'], (res) => {
+  chrome.storage.local.get(['savedPrompts', 'savedPromptsFormat'], (res) => {
     if (res.savedPrompts) {
       textarea.value = res.savedPrompts as string;
+    }
+    if (res.savedPromptsFormat === 'csv') {
+      currentFormat = 'csv';
+    } else {
+      currentFormat = 'text';
     }
   });
 }
@@ -458,7 +465,7 @@ function renderAll(state: AppState): void {
     state.isRunning &&
     $<HTMLTextAreaElement>('input-prompts').value.split('\n').filter(Boolean).length === 0
   ) {
-    $<HTMLTextAreaElement>('input-prompts').value = state.prompts.join('\n');
+    $<HTMLTextAreaElement>('input-prompts').value = promptsToText(state.prompts);
   }
 }
 
@@ -520,6 +527,7 @@ function renderPromptList(state: AppState): void {
           processing: '◌',
           completed: '✓',
           failed: '✗',
+          skipped: '⊘',
         };
         const icon = iconMap[status] || '○';
         const wIdx = state.promptWorkers?.[i];
@@ -527,9 +535,46 @@ function renderPromptList(state: AppState): void {
           wIdx !== undefined && wIdx !== null
             ? `<span class="worker-tag wtag-${wIdx}" style="font-size: 8px; padding: 0.5px 3.5px; border-radius: 2px;">w${wIdx}</span>`
             : '';
-        return `<li><span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p)}</span>${tag}</li>`;
+        const negative =
+          p.negative !== undefined
+            ? `<div class="prompt-negative">⛔ ${escapeHtml(p.negative)}</div>`
+            : '';
+        const toggleable = state.isRunning && (status === 'pending' || status === 'skipped');
+        const checkbox = `<input type="checkbox" class="prompt-enable" ${status === 'skipped' ? '' : 'checked'} ${toggleable ? '' : 'disabled'} />`;
+        const skipBtn =
+          state.isRunning && status === 'pending'
+            ? '<button class="prompt-skip-btn" title="Disable this prompt and all pending prompts after it">⏭ disable from here</button>'
+            : '';
+        const rowClass = status === 'skipped' ? ' class="skipped"' : '';
+        return `<li data-index="${i}"${rowClass}>${checkbox}<span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p.text)}</span>${skipBtn}${tag}${negative}</li>`;
       })
       .join('');
+}
+
+function initPromptListActions(): void {
+  const list = $('prompt-list');
+
+  list.addEventListener('change', (e) => {
+    const target = e.target as HTMLInputElement;
+    if (!target.classList.contains('prompt-enable')) return;
+    const li = target.closest('li');
+    const index = Number(li?.getAttribute('data-index'));
+    if (li === null || Number.isNaN(index)) return;
+    chrome.runtime.sendMessage({
+      action: 'SET_PROMPT_SKIPPED',
+      index,
+      skipped: !target.checked,
+    });
+  });
+
+  list.addEventListener('click', (e) => {
+    const btn = (e.target as HTMLElement).closest('button');
+    if (!btn || !btn.classList.contains('prompt-skip-btn')) return;
+    const li = btn.closest('li');
+    const index = Number(li?.getAttribute('data-index'));
+    if (li === null || Number.isNaN(index)) return;
+    chrome.runtime.sendMessage({ action: 'DISABLE_PROMPTS_FROM', index });
+  });
 }
 
 function renderLogs(state: AppState): void {

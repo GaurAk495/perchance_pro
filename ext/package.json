@@ -12,6 +12,8 @@
   "scripts": {
     "format": "prettier . --write",
     "build": "bun format && bun build src/content/index.ts --outdir dist && bun build src/background/background.ts --outdir dist && bun build src/sidebar/sidebar.ts --outdir dist && bun run copy-assets.ts"
+    "test": "bun test",
+    "typecheck": "bunx tsc --noEmit",
   },
   "peerDependencies": {
     "typescript": "^6.0.3"

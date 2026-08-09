@@ -94,6 +94,22 @@
               <textarea id="input-prompts" placeholder="Enter prompts, one per line..."></textarea>
             </label>
 
+            <details class="prompt-help">
+              <summary>Per-prompt negative prompts</summary>
+              <p>
+                Give a single prompt its own negative prompt instead of the global one. Per-prompt
+                wins; otherwise the global negative is used.
+              </p>
+              <p><code>!text</code> right after a prompt = that prompt's negative.</p>
+              <p>
+                <code>&lt;negative&gt;</code> on its own line = prompt is everything above it (may
+                be multiple lines), negative is everything below it until a blank line.
+              </p>
+              <p>
+                CSV file with 2 columns (prompt, negative) — import as a <code>.csv</code> file.
+              </p>
+            </details>
+
             <div class="btn-group">
               <button id="btn-import" class="btn btn-secondary">📂 Import</button>
               <button id="btn-clear" class="btn btn-secondary">🗑 Clear</button>
@@ -112,7 +128,7 @@
                 Negative Prompt
                 <textarea
                   id="input-negative-dashboard"
-                  rows="1"
+                  rows="2"
                   placeholder="Optional negative prompt..."
                 ></textarea>
               </label>
