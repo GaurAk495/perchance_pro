@@ -1208,10 +1208,34 @@ button:focus-visible {
 
 #footer {
   flex-shrink: 0;
-  text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   padding: 10px var(--spacing-lg);
   font-size: 11px;
   color: var(--text-muted);
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-subtle);
+}
+
+#footer-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+#footer-version {
+  font-variant-numeric: tabular-nums;
+}
+
+#footer-update {
+  color: var(--text-dim);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--border);
+  transition: color 0.15s;
+}
+
+#footer-update:hover {
+  color: var(--text);
 }

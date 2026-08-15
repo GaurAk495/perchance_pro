@@ -55,6 +55,9 @@ export const FREE_DAILY_PROMPT_LIMIT = 50;
 export const FREE_BATCH_PROMPT_LIMIT = 10;
 export const USAGE_STORAGE_KEY = 'usageTracker';
 
+// TODO: replace with the real Chrome Web Store URL once the extension is published.
+export const EXTENSION_WEB_STORE_URL = '#';
+
 export const ART_STLYE = [
   {
     value: 'ref:optionKeyName:Painted Anime Plus',

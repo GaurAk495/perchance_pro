@@ -6,6 +6,7 @@ import {
   FREE_DAILY_PROMPT_LIMIT,
   FREE_BATCH_PROMPT_LIMIT,
   USAGE_STORAGE_KEY,
+  EXTENSION_WEB_STORE_URL,
   type FilenamePatternKey,
 } from '../shared/constants.ts';
 import { parsePromptList, promptsToText, type PromptListFormat } from '../shared/prompt-parser.ts';
@@ -277,6 +278,7 @@ async function renderPremiumBanner(): Promise<void> {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await initAuth();
+  initFooter();
   initTabs();
   initDashboardActions();
   initSettingsForm();
@@ -301,6 +303,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── Tab system ───
+
+function initFooter(): void {
+  const version = document.getElementById('footer-version');
+  if (version) {
+    version.textContent = `v${chrome.runtime.getManifest().version}`;
+  }
+  const updateLink = document.getElementById('footer-update') as HTMLAnchorElement | null;
+  if (updateLink) {
+    updateLink.href = EXTENSION_WEB_STORE_URL;
+    if (EXTENSION_WEB_STORE_URL === '#') {
+      updateLink.style.pointerEvents = 'none';
+      updateLink.style.opacity = '0.4';
+      updateLink.title = 'Available once the extension is published';
+    }
+  }
+}
 
 function initTabs(): void {
   const tabBar = document.getElementById('tab-bar')!;
