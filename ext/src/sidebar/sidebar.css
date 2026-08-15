@@ -1204,38 +1204,83 @@ button:focus-visible {
   filter: brightness(1.08);
 }
 
+/* ─── Account Tab ─── */
+
+.account-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 16px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+  text-align: center;
+}
+
+.account-email {
+  font-size: 11px;
+  color: var(--text-dim);
+  word-break: break-all;
+  margin-bottom: 4px;
+}
+
+.account-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.account-plan-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.account-plan-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+}
+
+.account-plan-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.account-quota {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.account-actions {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.btn-upgrade-account {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+.btn-upgrade-account:hover:not(:disabled) {
+  background: linear-gradient(135deg, #fbbf24, #d97706);
+}
+
 /* ─── Footer ─── */
 
 #footer {
   flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  text-align: center;
   padding: 10px var(--spacing-lg);
   font-size: 11px;
   color: var(--text-muted);
   border-top: 1px solid var(--border-subtle);
   background: var(--bg-subtle);
-}
-
-#footer-meta {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-}
-
-#footer-version {
-  font-variant-numeric: tabular-nums;
-}
-
-#footer-update {
-  color: var(--text-dim);
-  text-decoration: none;
-  border-bottom: 1px dotted var(--border);
-  transition: color 0.15s;
-}
-
-#footer-update:hover {
-  color: var(--text);
 }

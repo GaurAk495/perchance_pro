@@ -45,16 +45,6 @@
 
     <!-- Auth: Dashboard -->
     <div id="auth-dashboard" class="auth-screen" style="display: none">
-      <div class="user-bar">
-        <img id="user-avatar" class="user-bar-avatar" src="" alt="" />
-        <span id="user-name" class="user-bar-name"></span>
-        <span id="user-premium-badge" class="premium-badge active">Premium</span>
-        <button id="btn-refresh-premium" class="btn-icon" title="Refresh premium status">
-          &#8635;
-        </button>
-        <button id="btn-signout" class="btn-text">Sign out</button>
-      </div>
-
       <div id="premium-banner" class="premium-banner" style="display: none">
         <span id="premium-banner-text">Free plan</span>
         <button id="btn-upgrade-banner" class="btn-upgrade">Upgrade</button>
@@ -73,6 +63,7 @@
           <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
           <button class="tab-btn" data-tab="settings">Settings</button>
           <button class="tab-btn" data-tab="logs">Logs</button>
+          <button class="tab-btn" data-tab="account">Account</button>
         </div>
 
         <div id="tab-content">
@@ -213,18 +204,39 @@
             </div>
             <ul id="log-list"></ul>
           </div>
+
+          <!-- ─── Account ─── -->
+          <div class="tab-panel" id="account-panel" data-tab="account">
+            <div class="account-card">
+              <img id="account-avatar" class="auth-avatar" src="" alt="" />
+              <div id="account-name" class="auth-name"></div>
+              <div id="account-email" class="account-email"></div>
+              <span id="account-premium-badge" class="premium-badge locked">Free</span>
+            </div>
+
+            <div class="account-plan">
+              <div class="account-plan-row">
+                <span class="account-plan-label">Plan</span>
+                <span id="account-plan-value" class="account-plan-value">Free plan</span>
+              </div>
+              <div id="account-quota" class="account-quota"></div>
+            </div>
+
+            <div class="btn-group account-actions">
+              <button id="btn-upgrade-account" class="btn btn-primary btn-upgrade-account">
+                Upgrade to Premium &#128142;
+              </button>
+              <button id="btn-refresh-premium" class="btn btn-secondary">
+                &#8635; Refresh Premium Status
+              </button>
+              <button id="btn-signout" class="btn btn-danger">Sign out</button>
+            </div>
+          </div>
         </div>
       </div>
+      <div id="footer">Made with &#10084; by AkGaurDev</div>
     </div>
     <!-- /auth-dashboard -->
-
-    <div id="footer">
-      <span>Made with &#10084; by AkGaurDev</span>
-      <span id="footer-meta">
-        <span id="footer-version"></span>
-        <a id="footer-update" href="#" target="_blank" rel="noopener">Update</a>
-      </span>
-    </div>
 
     <script src="sidebar.js"></script>
   </body>

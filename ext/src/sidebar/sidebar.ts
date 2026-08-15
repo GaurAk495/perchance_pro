@@ -6,7 +6,6 @@ import {
   FREE_DAILY_PROMPT_LIMIT,
   FREE_BATCH_PROMPT_LIMIT,
   USAGE_STORAGE_KEY,
-  EXTENSION_WEB_STORE_URL,
   type FilenamePatternKey,
 } from '../shared/constants.ts';
 import { parsePromptList, promptsToText, type PromptListFormat } from '../shared/prompt-parser.ts';
@@ -23,7 +22,7 @@ import { refreshPremium } from '../auth/premium-checker.ts';
 
 // ─── Types ───
 
-type TabName = 'dashboard' | 'settings' | 'logs';
+type TabName = 'dashboard' | 'settings' | 'logs' | 'account';
 
 interface LogEntry {
   text: string;
@@ -138,6 +137,15 @@ async function initAuth(): Promise<void> {
       });
     });
   }
+
+  const upgradeAccountBtn = document.getElementById('btn-upgrade-account');
+  if (upgradeAccountBtn) {
+    upgradeAccountBtn.addEventListener('click', () => {
+      openCheckout().catch((err) => {
+        console.error('Failed to open checkout:', err);
+      });
+    });
+  }
 }
 
 function showAuthScreen(authState: AuthState): void {
@@ -160,23 +168,40 @@ function showAuthScreen(authState: AuthState): void {
     }
   } else {
     dashboardScreen.style.display = 'flex';
-    populateUserBar(authState.user, authState.premium);
   }
+  renderAccount(authState);
   renderPremiumBanner();
 }
 
-function populateUserBar(user: AuthUser, premium: boolean): void {
-  const avatar = document.getElementById('user-avatar') as HTMLImageElement | null;
-  const name = document.getElementById('user-name');
-  const badge = document.getElementById('user-premium-badge');
-  if (avatar && user.photoURL) {
+async function renderAccount(authState: AuthState): Promise<void> {
+  const avatar = document.getElementById('account-avatar') as HTMLImageElement | null;
+  const name = document.getElementById('account-name');
+  const email = document.getElementById('account-email');
+  const badge = document.getElementById('account-premium-badge');
+  const planValue = document.getElementById('account-plan-value');
+  const quota = document.getElementById('account-quota');
+  const user = authState.user;
+
+  if (avatar && user?.photoURL) {
     avatar.src = user.photoURL;
   }
-  if (name) {
-    name.textContent = user.displayName || user.email;
-  }
+  if (name) name.textContent = user?.displayName || '';
+  if (email) email.textContent = user?.email || '';
   if (badge) {
-    badge.style.display = premium ? 'inline-flex' : 'none';
+    badge.textContent = authState.premium ? 'Premium' : 'Free';
+    badge.className = authState.premium ? 'premium-badge active' : 'premium-badge locked';
+  }
+  if (planValue) {
+    planValue.textContent = authState.premium ? 'Premium' : 'Free plan';
+  }
+  if (quota) {
+    if (authState.premium) {
+      quota.textContent = 'Unlimited prompts — enjoy!';
+    } else {
+      const usage = await getDailyUsage();
+      const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
+      quota.textContent = `${left}/${FREE_DAILY_PROMPT_LIMIT} prompts left today`;
+    }
   }
 }
 
@@ -278,7 +303,6 @@ async function renderPremiumBanner(): Promise<void> {
 
 document.addEventListener('DOMContentLoaded', async () => {
   await initAuth();
-  initFooter();
   initTabs();
   initDashboardActions();
   initSettingsForm();
@@ -303,22 +327,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 });
 
 // ─── Tab system ───
-
-function initFooter(): void {
-  const version = document.getElementById('footer-version');
-  if (version) {
-    version.textContent = `v${chrome.runtime.getManifest().version}`;
-  }
-  const updateLink = document.getElementById('footer-update') as HTMLAnchorElement | null;
-  if (updateLink) {
-    updateLink.href = EXTENSION_WEB_STORE_URL;
-    if (EXTENSION_WEB_STORE_URL === '#') {
-      updateLink.style.pointerEvents = 'none';
-      updateLink.style.opacity = '0.4';
-      updateLink.title = 'Available once the extension is published';
-    }
-  }
-}
 
 function initTabs(): void {
   const tabBar = document.getElementById('tab-bar')!;
