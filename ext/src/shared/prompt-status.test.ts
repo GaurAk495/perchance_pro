@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { disableFrom, togglePromptStatus, type PromptStatus } from './prompt-status.ts';
+import { disableFrom, enableFrom, togglePromptStatus, type PromptStatus } from './prompt-status.ts';
 
 const all = (statuses: PromptStatus[]): PromptStatus[] => [...statuses];
 
@@ -72,5 +72,46 @@ describe('disableFrom', () => {
   test('from 0 disables every pending prompt', () => {
     const result = disableFrom(all(['pending', 'pending']), 0);
     expect(result).toEqual(['skipped', 'skipped']);
+  });
+});
+
+describe('enableFrom', () => {
+  test('enables all skipped prompts from index onward', () => {
+    const result = enableFrom(all(['skipped', 'skipped', 'skipped', 'skipped']), 1);
+    expect(result).toEqual(['skipped', 'pending', 'pending', 'pending']);
+  });
+
+  test('leaves pending, processing, completed, and failed untouched', () => {
+    const result = enableFrom(
+      all(['skipped', 'pending', 'processing', 'skipped', 'completed', 'skipped', 'failed']),
+      0
+    );
+    expect(result).toEqual([
+      'pending',
+      'pending',
+      'processing',
+      'pending',
+      'completed',
+      'pending',
+      'failed',
+    ]);
+  });
+
+  test('no-op when nothing skipped at or after the index', () => {
+    const input = all(['completed', 'pending']);
+    const result = enableFrom(input, 0);
+    expect(result).toEqual(['completed', 'pending']);
+  });
+
+  test('returns a new array, does not mutate the input', () => {
+    const input = all(['skipped', 'skipped']);
+    const result = enableFrom(input, 0);
+    expect(result).not.toBe(input);
+    expect(input).toEqual(['skipped', 'skipped']);
+  });
+
+  test('from 0 enables every skipped prompt', () => {
+    const result = enableFrom(all(['skipped', 'pending', 'skipped']), 0);
+    expect(result).toEqual(['pending', 'pending', 'pending']);
   });
 });

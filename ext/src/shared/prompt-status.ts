@@ -26,3 +26,15 @@ export function disableFrom(statuses: readonly PromptStatus[], from: number): Pr
   }
   return changed ? copy : statuses.slice();
 }
+
+export function enableFrom(statuses: readonly PromptStatus[], from: number): PromptStatus[] {
+  const copy = [...statuses];
+  let changed = false;
+  for (let i = from; i < copy.length; i++) {
+    if (copy[i] === 'skipped') {
+      copy[i] = 'pending';
+      changed = true;
+    }
+  }
+  return changed ? copy : statuses.slice();
+}

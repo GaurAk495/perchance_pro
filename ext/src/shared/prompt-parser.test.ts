@@ -69,6 +69,81 @@ describe('parsePromptList (text format)', () => {
   });
 });
 
+describe('parsePromptList (inline | syntax)', () => {
+  test('A castle | blurry → prompt + inline negative', () => {
+    const result = parsePromptList('A castle | blurry', 'text');
+    expect(result).toEqual([{ text: 'A castle', negative: 'blurry' }]);
+  });
+
+  test('first | splits; rest stays in the negative', () => {
+    const result = parsePromptList('A castle | blurry | low quality', 'text');
+    expect(result).toEqual([{ text: 'A castle', negative: 'blurry | low quality' }]);
+  });
+
+  test('pipe without surrounding spaces stays part of the prompt', () => {
+    const result = parsePromptList('A|B castle', 'text');
+    expect(result).toEqual([{ text: 'A|B castle' }]);
+  });
+
+  test('empty negative after | yields no negative', () => {
+    const result = parsePromptList('A castle | ', 'text');
+    expect(result).toEqual([{ text: 'A castle' }]);
+  });
+
+  test('inline negative merges with a following ! line', () => {
+    const result = parsePromptList('A castle | blurry\n!low quality\nA dragon', 'text');
+    expect(result).toEqual([
+      { text: 'A castle', negative: 'blurry, low quality' },
+      { text: 'A dragon' },
+    ]);
+  });
+
+  test('inline negative merges with a following <negative> block', () => {
+    const result = parsePromptList('A castle | blurry\n<negative>\nfog\n\nA dragon', 'text');
+    expect(result).toEqual([{ text: 'A castle', negative: 'blurry, fog' }, { text: 'A dragon' }]);
+  });
+
+  test('inline negative lines coexist with plain lines in order', () => {
+    const result = parsePromptList('A castle | blurry\nB dragon\nC forest | fog', 'text');
+    expect(result).toEqual([
+      { text: 'A castle', negative: 'blurry' },
+      { text: 'B dragon' },
+      { text: 'C forest', negative: 'fog' },
+    ]);
+  });
+
+  test('space-bang-space splits inline too: prompt ! negative', () => {
+    const result = parsePromptList('A castle ! blurry, low quality', 'text');
+    expect(result).toEqual([{ text: 'A castle', negative: 'blurry, low quality' }]);
+  });
+
+  test('real pasted line: long prompt text + ! (negative list)', () => {
+    const line =
+      'The Urban Explorer: a cinematic wide shot on a 35mm lens ! (naked, nude, NSFW, sexy, bad anatomy, extra fingers, blurry, low quality)';
+    expect(parsePromptList(line, 'text')).toEqual([
+      {
+        text: 'The Urban Explorer: a cinematic wide shot on a 35mm lens',
+        negative: '(naked, nude, NSFW, sexy, bad anatomy, extra fingers, blurry, low quality)',
+      },
+    ]);
+  });
+
+  test('! separator wins over later | when both appear', () => {
+    const result = parsePromptList('A castle ! blurry | more', 'text');
+    expect(result).toEqual([{ text: 'A castle', negative: 'blurry | more' }]);
+  });
+
+  test('leading ! line still attaches to the previous prompt', () => {
+    const result = parsePromptList('A castle\n!blurry\nA dragon', 'text');
+    expect(result).toEqual([{ text: 'A castle', negative: 'blurry' }, { text: 'A dragon' }]);
+  });
+
+  test('trailing " !" with no negative yields no negative', () => {
+    const result = parsePromptList('A castle !', 'text');
+    expect(result).toEqual([{ text: 'A castle' }]);
+  });
+});
+
 describe('parsePromptList (csv format)', () => {
   test('second column becomes the negative', () => {
     const result = parsePromptList('A castle,blurry\nA dragon,extra fingers', 'csv');
@@ -116,5 +191,23 @@ describe('promptsToText round-trip', () => {
     );
     const reparsed = parsePromptList(promptsToText(original), 'text');
     expect(reparsed).toEqual(original);
+  });
+
+  test('single-line negatives serialize inline and re-parse identically', () => {
+    const original = parsePromptList(
+      'A castle | blurry\nA dragon | extra fingers\nA forest',
+      'text'
+    );
+    const serialized = promptsToText(original);
+    expect(serialized).toContain('A castle | blurry');
+    expect(serialized).toContain('A dragon | extra fingers');
+    expect(parsePromptList(serialized, 'text')).toEqual(original);
+  });
+
+  test('multi-line prompts still serialize via <negative> block', () => {
+    const original = [{ text: 'A castle\non a hill', negative: 'blurry, low quality' }];
+    const serialized = promptsToText(original);
+    expect(serialized).toBe('A castle\non a hill\n<negative>\nblurry, low quality');
+    expect(parsePromptList(serialized, 'text')).toEqual(original);
   });
 });

@@ -2,6 +2,9 @@ import type { Prompt } from './types.ts';
 
 export const NEGATIVE_MARKER = '<negative>';
 export const NEGATIVE_PREFIX = '!';
+export const INLINE_SEPARATOR = ' | ';
+export const INLINE_NEGATIVE_SEPARATOR = ' ! ';
+const INLINE_SEPARATORS = [INLINE_SEPARATOR, INLINE_NEGATIVE_SEPARATOR] as const;
 
 export type PromptListFormat = 'text' | 'csv';
 
@@ -12,8 +15,13 @@ export function parsePromptList(text: string, format: PromptListFormat): Prompt[
 export function promptsToText(prompts: readonly Prompt[]): string {
   return prompts
     .map((p) => {
-      const negative = p.negative ? `\n${NEGATIVE_MARKER}\n${p.negative}` : '';
-      return `${p.text}${negative}`;
+      if (p.negative) {
+        if (p.text.includes('\n')) {
+          return `${p.text}\n${NEGATIVE_MARKER}\n${p.negative}`;
+        }
+        return `${p.text}${INLINE_SEPARATOR}${p.negative}`;
+      }
+      return p.text;
     })
     .join('\n\n');
 }
@@ -28,6 +36,27 @@ function parseTextPrompts(text: string): Prompt[] {
   const flushGroupAsIndividuals = (): void => {
     for (const line of group) prompts.push({ text: line });
     group = [];
+  };
+
+  const splitInline = (line: string): { main: string; negative?: string } | null => {
+    let idx = -1;
+    let sepLen = 0;
+    for (const sep of INLINE_SEPARATORS) {
+      const i = line.indexOf(sep);
+      if (i !== -1 && (idx === -1 || i < idx)) {
+        idx = i;
+        sepLen = sep.length;
+      }
+    }
+    if (idx !== -1) {
+      const main = line.slice(0, idx).trim();
+      const negative = line.slice(idx + sepLen).trim();
+      return { main, negative: negative || undefined };
+    }
+    if (line.endsWith(' |') || line.endsWith(' !')) {
+      return { main: line.slice(0, -2).trim() };
+    }
+    return null;
   };
 
   const endNegativeBlock = (): void => {
@@ -72,6 +101,15 @@ function parseTextPrompts(text: string): Prompt[] {
 
     if (line === '') {
       flushGroupAsIndividuals();
+      continue;
+    }
+
+    const inline = splitInline(line);
+    if (inline) {
+      flushGroupAsIndividuals();
+      prompts.push(
+        inline.negative ? { text: inline.main, negative: inline.negative } : { text: inline.main }
+      );
       continue;
     }
 
