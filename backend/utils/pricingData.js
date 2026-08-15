@@ -1,8 +1,8 @@
 import fetch from 'node-fetch';
 
 const BASE_PRICES = {
-    monthly: 7.00, // USD
-    lifetime: 40.00 // USD
+    monthly: 6.99, // USD
+    lifetime: 39.99 // USD
 };
 
 const DEFAULT_RATE = 95.48; // Fallback USD to INR
