@@ -10,7 +10,7 @@ Rebuild the shared frontend (deployed at `https://auto-perchance.vercel.app/`) i
 - **Product naming**: Pro product is branded **Auto Perchance Pro** on the site (the extension manifest still says "Perchance Pro"; renaming the extension is a separate task).
 - **Positioning**: Auto Perchance Pro is the flagship — gold "Recommended" badge, primary CTAs point to it.
 - **Pricing is per product**:
-  - Auto Perchance Pro: monthly `$7.99`, lifetime `$50` (already in `backend/utils/pricingData.js`).
+  - Auto Perchance Pro: monthly `$7`, lifetime `$40` (already in `backend/utils/pricingData.js`).
   - Auto Perchance: monthly `$4.99`, lifetime `$25` (served by its own unchanged backend).
   - Shared checkout fetches pricing from the correct backend per `?app=`.
 - **Pro install link**: No Chrome Web Store listing yet — install CTAs use a clearly-marked placeholder config value for easy swap later.
@@ -75,7 +75,7 @@ upgrade.html (no app / auto_perchance) → API base same-origin /api/*
 6. **Products** — two cards linking to `perchance-pro.html` and `auto-perchance.html` ("Explore Auto Perchance Pro →" / "Explore Auto Perchance →").
 7. **Use cases** — reuse existing grid (artists, writers, social creators, print-on-demand, game devs, researchers).
 8. **Pricing** — shared section with per-product prices:
-   - Auto Perchance Pro: $7.99/mo, $50 lifetime → "Unlock Auto Perchance Pro" → `upgrade.html?app=perchance_pro`.
+   - Auto Perchance Pro: $7/mo, $40 lifetime → "Unlock Auto Perchance Pro" → `upgrade.html?app=perchance_pro`.
    - Auto Perchance: $4.99/mo, $25 lifetime → "Unlock Auto Perchance" → `upgrade.html?app=auto_perchance`.
    - Payment methods note (PayPal / Razorpay UPI) kept.
 9. **FAQ** — updated for both products + shared checkout (what each product does, how to install each, free vs premium, payment methods, cross-product purchases are separate).
@@ -89,7 +89,7 @@ SEO: update title/description/keywords/OG/JSON-LD to cover both products (Pro fl
 - Feature deep-dive grid (from the extension): Batch prompt automation, Per-prompt negative prompts, Per-prompt skip/disable, Multi-worker parallel generation (up to 6), Art style + style mix + shape controls, Global negative prompt, Prefix/suffix enhancers, Custom filename patterns, Per-prompt folders, TXT/CSV import, Live stats & logs, Pause/Resume/Stop.
 - "How it works" steps (install, open Perchance + side panel, paste prompts & start).
 - Free vs Premium comparison table (same as landing).
-- Pricing: $7.99/mo / $50 lifetime → upgrade CTA (`upgrade.html?app=perchance_pro`).
+- Pricing: $7/mo / $40 lifetime → upgrade CTA (`upgrade.html?app=perchance_pro`).
 - FAQ subset, link back to landing.
 
 ### 4. `auto-perchance.html` — Auto Perchance product page
@@ -110,7 +110,7 @@ SEO: update title/description/keywords/OG/JSON-LD to cover both products (Pro fl
   ```
 - `app` param resolution: `perchance_pro` → pro config; anything else → auto_perchance.
 - All API calls (`/api/pricing`, `/api/createOrder`, `/api/status`) use `apiBase`.
-- Dynamic: Razorpay `name`, extension logo/title/feature grid, fallback static prices per product (Pro $7.99/$50, Auto Perchance $4.99/$25).
+- Dynamic: Razorpay `name`, extension logo/title/feature grid, fallback static prices per product (Pro $7/$40, Auto Perchance $4.99/$25).
 - Keeps existing behavior: token from `?token=`, plan status card, currency toggle (USD/INR), geo payment notice, Razorpay checkout, success/error cards, FAQ, support banner.
 - Replace the `name: "Auto Perchance"` literal in Razorpay init with `app.productName`.
 
@@ -131,7 +131,7 @@ SEO: update title/description/keywords/OG/JSON-LD to cover both products (Pro fl
 
 - Open all 4 pages locally; verify shared nav/footer/particles work on each.
 - Verify comparison table renders and is responsive (<640px stacks).
-- `upgrade.html` without `?app=` behaves as Auto Perchance (same-origin API). With `?app=perchance_pro` routes to `https://perchance-pro.vercel.app/api/*`, shows "Auto Perchance Pro" branding and $7.99/$50.
+- `upgrade.html` without `?app=` behaves as Auto Perchance (same-origin API). With `?app=perchance_pro` routes to `https://perchance-pro.vercel.app/api/*`, shows "Auto Perchance Pro" branding and $7/$40.
 - Verify placeholder install link shows "Coming soon".
 - Confirm JSON-LD/SEO meta present on index.html.
 

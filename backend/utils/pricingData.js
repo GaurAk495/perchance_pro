@@ -1,11 +1,11 @@
 import fetch from 'node-fetch';
 
 const BASE_PRICES = {
-    monthly: 7.99, // USD
-    lifetime: 50.00 // USD
+    monthly: 7.00, // USD
+    lifetime: 40.00 // USD
 };
 
-const DEFAULT_RATE = 84.0; // Fallback USD to INR
+const DEFAULT_RATE = 95.48; // Fallback USD to INR
 
 export async function getExchangeRate() {
     try {
