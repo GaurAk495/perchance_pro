@@ -4,9 +4,7 @@ import { getImageIframes, getOuterIframeDocument } from './dom.ts';
 import { waitForImageSrc } from './wait.ts';
 import { DEFAULTS } from '../shared/constants.ts';
 
-export async function extractAndDownloadImages(
-  promptIndex: number,
-): Promise<number> {
+export async function extractAndDownloadImages(promptIndex: number): Promise<number> {
   const iframes = getImageIframes();
   const dataUrls: string[] = [];
 
@@ -34,7 +32,7 @@ export async function extractAndDownloadImages(
 async function resolveImageSrc(
   src: string,
   promptIndex: number,
-  imageIndex: number,
+  imageIndex: number
 ): Promise<string | null> {
   if (src.startsWith('data:')) return src;
 
@@ -118,11 +116,11 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 function sleep(ms: number): Promise<void> {
-  return new Promise(r => setTimeout(r, ms));
+  return new Promise((r) => setTimeout(r, ms));
 }
 
 function sendDownloadRequest(
-  images: readonly { dataUrl: string; filename: string }[],
+  images: readonly { dataUrl: string; filename: string }[]
 ): Promise<boolean> {
   const message: ContentToBackgroundMessage = {
     type: 'DOWNLOAD_IMAGES',

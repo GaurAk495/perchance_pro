@@ -1,207 +1,243 @@
 <!doctype html>
 <html lang="en">
-    <head>
-        <meta charset="UTF-8" />
-        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-        <title>Perchance Pro</title>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-        <link
-            href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
-            rel="stylesheet"
-        />
-        <link rel="stylesheet" href="sidebar.css" />
-    </head>
-    <body>
-        <div id="app">
-            <div id="header">
-                <h1>Perchance Pro</h1>
-                <span id="connection-badge" class="offline">◉ Offline</span>
-            </div>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Perchance Pro</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="sidebar.css" />
+  </head>
+  <body>
+    <!-- Auth: Login Screen -->
+    <div id="auth-login" class="auth-screen" style="display: none">
+      <div class="auth-container">
+        <div class="auth-logo">Perchance Pro</div>
+        <p class="auth-tagline">Bulk image generation automation</p>
+        <button id="btn-google-signin" class="btn-google">
+          <svg class="google-icon" viewBox="0 0 24 24" width="18" height="18">
+            <path
+              fill="#4285F4"
+              d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"
+            />
+            <path
+              fill="#34A853"
+              d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+            />
+            <path
+              fill="#FBBC05"
+              d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
+            />
+            <path
+              fill="#EA4335"
+              d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
+            />
+          </svg>
+          Sign in with Google
+        </button>
+        <p id="auth-error" class="auth-error" style="display: none"></p>
+      </div>
+    </div>
 
-            <div id="tab-bar">
-                <button class="tab-btn active" data-tab="dashboard">
-                    Dashboard
-                </button>
-                <button class="tab-btn" data-tab="settings">Settings</button>
-                <button class="tab-btn" data-tab="logs">Logs</button>
-            </div>
+    <!-- Auth: Dashboard -->
+    <div id="auth-dashboard" class="auth-screen" style="display: none">
+      <div id="premium-banner" class="premium-banner" style="display: none">
+        <span id="premium-banner-text">Free plan</span>
+        <button id="btn-upgrade-banner" class="btn-upgrade">Upgrade</button>
+      </div>
 
-            <div id="tab-content">
-                <!-- ─── Dashboard ─── -->
-                <div
-                    class="tab-panel active"
-                    id="dashboard-panel"
-                    data-tab="dashboard"
-                >
-                    <div class="btn-group">
-                        <button id="btn-start" class="btn btn-primary">
-                            ▶ Start
-                        </button>
-                        <button
-                            id="btn-pause"
-                            class="btn btn-secondary"
-                            disabled
-                        >
-                            ⏸ Pause
-                        </button>
-                        <button id="btn-stop" class="btn btn-danger" disabled>
-                            ⏹ Stop
-                        </button>
-                    </div>
-
-                    <label>
-                        Prompt List
-                        <textarea
-                            id="input-prompts"
-                            placeholder="Enter prompts, one per line..."
-                        ></textarea>
-                    </label>
-
-                    <div class="btn-group">
-                        <button id="btn-import" class="btn btn-secondary">
-                            📂 Import
-                        </button>
-                        <button id="btn-clear" class="btn btn-secondary">
-                            🗑 Clear
-                        </button>
-                    </div>
-                    <div id="prompt-list"></div>
-                </div>
-
-                <!-- ─── Settings ─── -->
-                <div class="tab-panel" id="settings-panel" data-tab="settings">
-                    <form>
-                        <label>
-                            Workers
-                            <input
-                                type="number"
-                                id="input-workers"
-                                min="1"
-                                max="8"
-                                value="3"
-                            />
-                        </label>
-
-                        <label>
-                            Images per Prompt
-                            <input
-                                type="number"
-                                id="input-num-images"
-                                min="1"
-                                max="20"
-                                value="1"
-                            />
-                        </label>
-
-                        <label class="form-row-full">
-                            Negative Prompt
-                            <textarea
-                                id="input-negative"
-                                placeholder="Optional negative prompt..."
-                            ></textarea>
-                        </label>
-
-                        <label>
-                            Prefix
-                            <input
-                                type="text"
-                                id="input-prefix"
-                                placeholder="Prepended to prompt"
-                            />
-                        </label>
-
-                        <label>
-                            Suffix
-                            <input
-                                type="text"
-                                id="input-suffix"
-                                placeholder="Appended to prompt"
-                            />
-                        </label>
-
-                        <label>
-                            Subfolder
-                            <input
-                                type="text"
-                                id="input-folder"
-                                placeholder="e.g. portraits"
-                            />
-                        </label>
-
-                        <label>
-                            Filename Pattern
-                            <select id="input-filename-pattern">
-                                <option value="prompt_text_image_idx">
-                                    {prompt_text}_{image_idx}
-                                </option>
-                                <option value="prompt_idx_image_idx">
-                                    {prompt_idx}_{image_idx}
-                                </option>
-                                <option value="timestamp_image_idx">
-                                    {timestamp}_{image_idx}
-                                </option>
-                                <option
-                                    value="prompt_idx_prompt_text_image_idx"
-                                >
-                                    {prompt_idx}_{prompt_text}_{image_idx}
-                                </option>
-                            </select>
-                        </label>
-
-                        <label
-                            style="
-                                flex-direction: row;
-                                align-items: center;
-                                gap: 6px;
-                                grid-column: 1/-1;
-                            "
-                        >
-                            <input
-                                type="checkbox"
-                                id="input-per-prompt-folders"
-                            />
-                            Per-prompt folders
-                        </label>
-                    </form>
-                </div>
-
-                <!-- ─── Logs ─── -->
-                <div class="tab-panel" id="logs-panel" data-tab="logs">
-                    <div id="stats-panel"></div>
-                    <div id="log-filter-bar">
-                        <button class="filter-btn active" data-filter="all">
-                            All
-                        </button>
-                        <button class="filter-btn" data-filter="info">
-                            Info
-                        </button>
-                        <button class="filter-btn" data-filter="success">
-                            Success
-                        </button>
-                        <button class="filter-btn" data-filter="error">
-                            Errors
-                        </button>
-                        <button class="filter-btn" data-filter="warning">
-                            Warnings
-                        </button>
-                        <button
-                            id="btn-clear-logs"
-                            class="btn btn-secondary"
-                            style="
-                                margin-left: auto;
-                                padding: 3px 10px;
-                                font-size: 10px;
-                            "
-                        >
-                            Clear
-                        </button>
-                    </div>
-                    <ul id="log-list"></ul>
-                </div>
-            </div>
+      <div id="app">
+        <div id="header">
+          <div id="header-brand">
+            <img src="public/icon128.png" alt="Logo" id="header-logo" />
+            <h1>Perchance Pro</h1>
+          </div>
+          <span id="connection-badge" class="offline">Offline</span>
         </div>
 
-        <script src="sidebar.js"></script>
-    </body>
+        <div id="tab-bar">
+          <button class="tab-btn active" data-tab="dashboard">Dashboard</button>
+          <button class="tab-btn" data-tab="settings">Settings</button>
+          <button class="tab-btn" data-tab="logs">Logs</button>
+          <button class="tab-btn" data-tab="account">Account</button>
+        </div>
+
+        <div id="tab-content">
+          <!-- ─── Dashboard ─── -->
+          <div class="tab-panel active" id="dashboard-panel" data-tab="dashboard">
+            <label>
+              Prompt List
+              <textarea id="input-prompts" placeholder="Enter prompts, one per line..."></textarea>
+            </label>
+
+            <details class="prompt-help">
+              <summary>Per-prompt negative prompts</summary>
+              <p>
+                Give a single prompt its own negative prompt instead of the global one. Per-prompt
+                wins; otherwise the global negative is used.
+              </p>
+              <p><code>!text</code> right after a prompt = that prompt's negative.</p>
+              <p>
+                <code>prompt | negative</code> or <code>prompt ! negative</code> on the same line =
+                that prompt's negative (a <code> | </code> or <code> ! </code> with spaces around
+                it).
+              </p>
+              <p>
+                <code>&lt;negative&gt;</code> on its own line = prompt is everything above it (may
+                be multiple lines), negative is everything below it until a blank line.
+              </p>
+              <p>
+                CSV file with 2 columns (prompt, negative) — import as a <code>.csv</code> file.
+              </p>
+            </details>
+
+            <div class="btn-group">
+              <button id="btn-import" class="btn btn-secondary">📂 Import</button>
+              <button id="btn-clear" class="btn btn-secondary">🗑 Clear</button>
+            </div>
+
+            <div class="dashboard-quick-settings">
+              <label>
+                Art Style
+                <select id="input-art-style-dashboard"></select>
+              </label>
+              <label>
+                Art Style Mix
+                <select id="input-art-style-mix-dashboard"></select>
+              </label>
+              <label>
+                Shape
+                <select id="input-shape-dashboard"></select>
+              </label>
+              <label>
+                Images / Prompt
+                <input type="number" id="input-num-images-dashboard" min="1" max="20" value="1" />
+              </label>
+              <label class="form-row-full">
+                Negative Prompt
+                <textarea
+                  id="input-negative-dashboard"
+                  rows="2"
+                  placeholder="Optional negative prompt..."
+                ></textarea>
+              </label>
+            </div>
+
+            <div class="btn-group">
+              <button id="btn-start" class="btn btn-primary">▶ Start</button>
+              <button id="btn-pause" class="btn btn-secondary" disabled>⏸ Pause</button>
+              <button id="btn-stop" class="btn btn-danger" disabled>⏹ Stop</button>
+            </div>
+
+            <div id="prompt-list"></div>
+          </div>
+
+          <!-- ─── Settings ─── -->
+          <div class="tab-panel" id="settings-panel" data-tab="settings">
+            <form>
+              <label>
+                Workers
+                <select id="input-workers">
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3" selected>3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                </select>
+              </label>
+
+              <label>
+                Prefix
+                <input type="text" id="input-prefix" placeholder="Prepended to prompt" />
+              </label>
+
+              <label>
+                Suffix
+                <input type="text" id="input-suffix" placeholder="Appended to prompt" />
+              </label>
+
+              <label>
+                Subfolder
+                <input type="text" id="input-folder" placeholder="e.g. portraits" />
+              </label>
+
+              <label>
+                Filename Pattern
+                <select id="input-filename-pattern">
+                  <option value="prompt_text_image_idx">{prompt_text}_{image_idx}</option>
+                  <option value="prompt_idx_image_idx">{prompt_idx}_{image_idx}</option>
+                  <option value="timestamp_image_idx">{timestamp}_{image_idx}</option>
+                  <option value="prompt_idx_prompt_text_image_idx">
+                    {prompt_idx}_{prompt_text}_{image_idx}
+                  </option>
+                </select>
+              </label>
+
+              <label style="flex-direction: row; align-items: center; gap: 6px; grid-column: 1/-1">
+                <input type="checkbox" id="input-per-prompt-folders" />
+                Per-prompt folders
+              </label>
+            </form>
+          </div>
+
+          <!-- ─── Logs ─── -->
+          <div class="tab-panel" id="logs-panel" data-tab="logs">
+            <div id="stats-panel"></div>
+            <div id="log-filter-bar">
+              <button class="filter-btn active" data-filter="all">All</button>
+              <button class="filter-btn" data-filter="info">Info</button>
+              <button class="filter-btn" data-filter="success">Success</button>
+              <button class="filter-btn" data-filter="error">Errors</button>
+              <button class="filter-btn" data-filter="warning">Warnings</button>
+              <button
+                id="btn-clear-logs"
+                class="btn btn-secondary"
+                style="margin-left: auto; padding: 3px 10px; font-size: 10px"
+              >
+                Clear
+              </button>
+            </div>
+            <ul id="log-list"></ul>
+          </div>
+
+          <!-- ─── Account ─── -->
+          <div class="tab-panel" id="account-panel" data-tab="account">
+            <div class="account-card">
+              <img id="account-avatar" class="auth-avatar" src="" alt="" />
+              <div id="account-name" class="auth-name"></div>
+              <div id="account-email" class="account-email"></div>
+              <span id="account-premium-badge" class="premium-badge locked">Free</span>
+            </div>
+
+            <div class="account-plan">
+              <div class="account-plan-row">
+                <span class="account-plan-label">Plan</span>
+                <span id="account-plan-value" class="account-plan-value">Free plan</span>
+              </div>
+              <div id="account-quota" class="account-quota"></div>
+            </div>
+
+            <div class="btn-group account-actions">
+              <button id="btn-upgrade-account" class="btn btn-primary btn-upgrade-account">
+                Upgrade to Premium &#128142;
+              </button>
+              <button id="btn-refresh-premium" class="btn btn-secondary">
+                &#8635; Refresh Premium Status
+              </button>
+              <button id="btn-signout" class="btn btn-danger">Sign out</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div id="footer">Made with &#10084; by AkGaurDev</div>
+    </div>
+    <!-- /auth-dashboard -->
+
+    <script src="sidebar.js"></script>
+  </body>
 </html>

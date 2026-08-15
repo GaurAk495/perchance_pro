@@ -1,11 +1,8 @@
 export function zeroPad(num: number, length: number = 3): string {
-  return String(num).padStart(length, "0");
+  return String(num).padStart(length, '0');
 }
 
-export function createFilename(
-  promptIndex: number,
-  imageIndex: number,
-): string {
+export function createFilename(promptIndex: number, imageIndex: number): string {
   return `${zeroPad(promptIndex + 1)}_${zeroPad(imageIndex + 1)}.jpg`;
 }
 

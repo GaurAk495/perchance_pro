@@ -1,4 +1,18 @@
-import { DEFAULTS, FILENAME_PATTERNS, type FilenamePatternKey } from '../shared/constants.ts';
+import {
+  DEFAULTS,
+  FILENAME_PATTERNS,
+  FREE_DAILY_PROMPT_LIMIT,
+  FREE_BATCH_PROMPT_LIMIT,
+  USAGE_STORAGE_KEY,
+  type FilenamePatternKey,
+} from '../shared/constants.ts';
+import {
+  disableFrom,
+  enableFrom,
+  togglePromptStatus,
+  type PromptStatus,
+} from '../shared/prompt-status.ts';
+import type { Prompt } from '../shared/types.ts';
 
 interface WorkerTab {
   tabId: number;
@@ -11,8 +25,6 @@ interface WorkerTab {
   promptStartedAt: number;
   tabCreatedAt: number;
 }
-
-type PromptStatus = 'pending' | 'processing' | 'completed' | 'failed';
 
 interface LogEntry {
   text: string;
@@ -29,13 +41,16 @@ interface WorkerStat {
 }
 
 interface AppState {
-  prompts: string[];
+  prompts: Prompt[];
   currentIndex: number;
   isRunning: boolean;
   isPaused: boolean;
   negativePrompt: string;
   numImages: number;
   workerCount: number;
+  artStyle: string;
+  artStyleMix: string;
+  shape: string;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
   promptWorkers: (number | null)[];
@@ -47,6 +62,10 @@ interface AppState {
   logs: LogEntry[];
   workerStats: WorkerStat[];
   nextWorkerIndex: number;
+  foregroundIntervalMs: number;
+  rotationIndex: number;
+  runStartedAt: number;
+  elapsedMs: number;
 }
 
 function createInitialState(): AppState {
@@ -58,6 +77,9 @@ function createInitialState(): AppState {
     negativePrompt: '',
     numImages: 1,
     workerCount: DEFAULTS.workerCount,
+    artStyle: 'ref:optionKeyName:𝗡𝗼 𝘀𝘁𝘆𝗹𝗲',
+    artStyleMix: 'ref:optionKeyName:Not Mix',
+    shape: '512x768',
     workers: [],
     promptStatuses: [],
     promptWorkers: [],
@@ -69,6 +91,10 @@ function createInitialState(): AppState {
     logs: [],
     workerStats: [],
     nextWorkerIndex: 0,
+    foregroundIntervalMs: DEFAULTS.foregroundIntervalMs,
+    rotationIndex: 0,
+    runStartedAt: 0,
+    elapsedMs: 0,
   };
 }
 
@@ -92,12 +118,19 @@ chrome.storage.local.get(['appState'], (res) => {
     if (state.perPromptFolders === undefined) state.perPromptFolders = DEFAULTS.perPromptFolders;
 
     if (Array.isArray(state.logs) && state.logs.length > 0 && typeof state.logs[0] === 'string') {
-      state.logs = (state.logs as unknown as string[]).map(text => ({ text, type: 'info' as const }));
+      state.logs = (state.logs as unknown as string[]).map((text) => ({
+        text,
+        type: 'info' as const,
+      }));
     }
 
     if (state.isRunning) {
       state.isRunning = false;
       state.isPaused = false;
+      if (state.runStartedAt > 0) {
+        state.elapsedMs = Date.now() - state.runStartedAt;
+      }
+      state.runStartedAt = 0;
       log('Restored from previous session. Idle.', 'info');
     }
     broadcastState();
@@ -131,7 +164,7 @@ function getWorkerLogIndex(worker: WorkerTab): number | undefined {
 }
 
 function getOrCreateWorkerStat(workerIndex: number): WorkerStat {
-  let stat = state.workerStats.find(s => s.workerIndex === workerIndex);
+  let stat = state.workerStats.find((s) => s.workerIndex === workerIndex);
   if (!stat) {
     stat = { workerIndex, promptsCompleted: 0, imagesGenerated: 0, totalTimeMs: 0, errors: 0 };
     state.workerStats.push(stat);
@@ -142,33 +175,36 @@ function getOrCreateWorkerStat(workerIndex: number): WorkerStat {
 // ─── Worker pool ───
 
 function createWorkerTab(): void {
-  chrome.tabs.create({ url: 'https://perchance.org/image-generator-professional', active: false }, (tab) => {
-    const tabId: number | undefined = tab.id;
-    if (tabId === undefined) {
-      log('Failed to create worker tab.', 'error');
-      return;
-    }
-    const workerIndex = state.nextWorkerIndex++;
-    state.workers.push({
-      tabId,
-      workerIndex,
-      frameId: null,
-      busy: false,
-      currentPromptIndex: null,
-      expectedCount: 0,
-      receivedCount: 0,
-      promptStartedAt: 0,
-      tabCreatedAt: Date.now(),
-    });
-    getOrCreateWorkerStat(workerIndex);
-    log(`Worker tab created (id=${tabId}).`, 'info', workerIndex);
-    broadcastState();
+  chrome.tabs.create(
+    { url: 'https://perchance.org/image-generator-professional', active: false },
+    (tab) => {
+      const tabId: number | undefined = tab.id;
+      if (tabId === undefined) {
+        log('Failed to create worker tab.', 'error');
+        return;
+      }
+      const workerIndex = state.nextWorkerIndex++;
+      state.workers.push({
+        tabId,
+        workerIndex,
+        frameId: null,
+        busy: false,
+        currentPromptIndex: null,
+        expectedCount: 0,
+        receivedCount: 0,
+        promptStartedAt: 0,
+        tabCreatedAt: Date.now(),
+      });
+      getOrCreateWorkerStat(workerIndex);
+      log(`Worker tab created (id=${tabId}).`, 'info', workerIndex);
+      broadcastState();
 
-    setTimeout(() => checkWorkerRegistration(tabId), DEFAULTS.workerCreateTimeout);
-  });
+      setTimeout(() => checkWorkerRegistration(tabId), DEFAULTS.workerCreateTimeout);
+    }
+  );
 }
 function checkWorkerRegistration(tabId: number): void {
-  const worker = state.workers.find(w => w.tabId === tabId);
+  const worker = state.workers.find((w) => w.tabId === tabId);
   if (!worker) return;
   if (worker.frameId === null) {
     log(`Worker tab not responding. Reloading...`, 'warning', worker.workerIndex);
@@ -180,11 +216,11 @@ function checkWorkerRegistration(tabId: number): void {
 }
 
 function findIdleWorker(): WorkerTab | undefined {
-  return state.workers.find(w => !w.busy && w.frameId !== null);
+  return state.workers.find((w) => !w.busy && w.frameId !== null);
 }
 
 function hasPendingPrompts(): boolean {
-  return state.promptStatuses.some(s => s === 'pending');
+  return state.promptStatuses.some((s) => s === 'pending');
 }
 
 function getNextPendingIndex(): number {
@@ -194,14 +230,16 @@ function getNextPendingIndex(): number {
 function assignNextPrompt(worker: WorkerTab): void {
   if (!state.isRunning || state.isPaused) return;
 
+  startRotation();
+
   const idx = getNextPendingIndex();
   if (idx === -1) {
     checkAllComplete();
     return;
   }
 
-  const rawPrompt = state.prompts[idx];
-  if (!rawPrompt) {
+  const prompt = state.prompts[idx];
+  if (!prompt) {
     state.promptStatuses[idx] = 'failed';
     broadcastState();
     assignNextPrompt(worker);
@@ -218,17 +256,25 @@ function assignNextPrompt(worker: WorkerTab): void {
   state.promptWorkers[idx] = worker.workerIndex;
   broadcastState();
 
-  const finalPrompt = `${state.prefix}${rawPrompt}${state.suffix}`;
+  const finalPrompt = `${state.prefix}${prompt.text}${state.suffix}`;
+  const negative = prompt.negative ?? state.negativePrompt;
 
-  log(`[${idx + 1}/${state.prompts.length}] "${rawPrompt.substring(0, 40)}..."`, 'info', worker.workerIndex);
+  log(
+    `[${idx + 1}/${state.prompts.length}] "${prompt.text.substring(0, 40)}..."`,
+    'info',
+    worker.workerIndex
+  );
 
   chrome.tabs.sendMessage(
     worker.tabId,
     {
       action: 'CMD_RUN_PROMPT',
       prompt: finalPrompt,
-      negativePrompt: state.negativePrompt,
+      negativePrompt: negative,
       numImages: state.numImages,
+      artStyle: state.artStyle,
+      artStyleMix: state.artStyleMix,
+      shape: state.shape,
     },
     { frameId: worker.frameId! },
     () => {
@@ -242,7 +288,7 @@ function assignNextPrompt(worker: WorkerTab): void {
         broadcastState();
         handleWorkerFailure(worker);
       }
-    },
+    }
   );
 }
 
@@ -266,12 +312,16 @@ function sanitizePrompt(text: string): string {
 }
 
 function buildImageFilename(promptText: string, promptIdx: number, imageIdx: number): string {
-  const fmt = FILENAME_PATTERNS[state.filenamePattern] ?? FILENAME_PATTERNS['prompt_text_image_idx'];
+  const fmt =
+    FILENAME_PATTERNS[state.filenamePattern] ?? FILENAME_PATTERNS['prompt_text_image_idx'];
   const vars: Record<string, string> = {
     prompt_text: sanitizePrompt(promptText),
     prompt_idx: String(promptIdx + 1).padStart(3, '0'),
     image_idx: String(imageIdx).padStart(3, '0'),
-    timestamp: new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14),
+    timestamp: new Date()
+      .toISOString()
+      .replace(/[^0-9]/g, '')
+      .slice(0, 14),
   };
   return fmt.replace(/\{(\w+)\}/g, (_, key) => vars[key] ?? key);
 }
@@ -280,7 +330,7 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
   const promptIdx = worker.currentPromptIndex;
   if (promptIdx === null) return;
 
-  const promptText = state.prompts[promptIdx] ?? 'unknown';
+  const promptText = state.prompts[promptIdx]?.text ?? 'unknown';
   const baseName = buildImageFilename(promptText, promptIdx, worker.receivedCount + 1);
   const folderParts: string[] = [];
   if (state.folderName) folderParts.push(state.folderName);
@@ -293,20 +343,25 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
       log(`Download failed: ${chrome.runtime.lastError.message}`, 'error', worker.workerIndex);
     }
     worker.receivedCount++;
+    const stat = getOrCreateWorkerStat(worker.workerIndex);
+    stat.imagesGenerated++;
     log(`[${promptIdx + 1}] ${filename}`, 'success', worker.workerIndex);
     broadcastState();
 
     if (worker.expectedCount > 0 && worker.receivedCount >= worker.expectedCount) {
       const elapsed = Date.now() - worker.promptStartedAt;
-      const stat = getOrCreateWorkerStat(worker.workerIndex);
       stat.promptsCompleted++;
-      stat.imagesGenerated += worker.receivedCount;
       stat.totalTimeMs += elapsed;
 
       state.promptStatuses[promptIdx] = 'completed';
-      log(`Prompt ${promptIdx + 1} done (${worker.receivedCount} images, ${(elapsed / 1000).toFixed(1)}s)`, 'success', worker.workerIndex);
+      log(
+        `Prompt ${promptIdx + 1} done (${worker.receivedCount} images, ${(elapsed / 1000).toFixed(1)}s)`,
+        'success',
+        worker.workerIndex
+      );
       worker.busy = false;
       worker.currentPromptIndex = null;
+      incrementUsageIfFree();
       broadcastState();
 
       if (state.isRunning && !state.isPaused) {
@@ -318,10 +373,26 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
   });
 }
 
+function incrementUsageIfFree(): void {
+  chrome.storage.local.get(['authState', USAGE_STORAGE_KEY], (res) => {
+    const authState = res.authState as { user: unknown; premium: boolean } | undefined;
+    if (authState?.premium) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const usage = res[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
+    const count = usage && usage.date === today ? usage.count : 0;
+    chrome.storage.local.set({ [USAGE_STORAGE_KEY]: { date: today, count: count + 1 } });
+  });
+}
+
 function checkAllComplete(): void {
-  if (!hasPendingPrompts() && state.workers.every(w => !w.busy)) {
+  if (!hasPendingPrompts() && state.workers.every((w) => !w.busy)) {
+    if (state.runStartedAt > 0) {
+      state.elapsedMs = Date.now() - state.runStartedAt;
+    }
     state.isRunning = false;
     state.isPaused = false;
+    state.runStartedAt = 0;
+    stopRotation();
     log('=== All prompts completed! ===', 'success');
     closeWorkers();
     saveState();
@@ -334,6 +405,40 @@ function closeWorkers(): void {
   }
   state.workers = [];
 }
+<<<<<<< HEAD
+=======
+
+let rotationTimer: ReturnType<typeof setInterval> | null = null;
+
+function startRotation(): void {
+  if (rotationTimer !== null) return;
+  log('Foreground rotation started.', 'info');
+  rotationTimer = setInterval(rotateForeground, state.foregroundIntervalMs);
+}
+
+function rotateForeground(): void {
+  if (state.workers.length === 0) return;
+
+  const worker = state.workers[state.rotationIndex % state.workers.length];
+  if (!worker) return;
+  state.rotationIndex++;
+
+  chrome.tabs.update(worker.tabId, { active: true }, () => {
+    if (chrome.runtime.lastError) {
+      // Tab may have been closed; skip silently
+    }
+  });
+}
+
+function stopRotation(): void {
+  if (rotationTimer !== null) {
+    clearInterval(rotationTimer);
+    rotationTimer = null;
+  }
+  state.rotationIndex = 0;
+}
+
+>>>>>>> ai_write
 function spawnWorkers(count: number): void {
   const effectiveCount = Math.min(count, state.prompts.length);
   for (let i = 0; i < effectiveCount; i++) {
@@ -347,7 +452,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const tabId = sender.tab?.id;
     if (tabId === undefined) return false;
 
-    let worker = state.workers.find(w => w.tabId === tabId);
+    let worker = state.workers.find((w) => w.tabId === tabId);
     if (!worker) {
       const workerIndex = state.nextWorkerIndex++;
       worker = {
@@ -373,11 +478,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     }
     broadcastState();
     sendResponse({ status: 'registered' });
-
   } else if (msg.action === 'START') {
-    const prompts = msg.prompts as string[];
+    const prompts = msg.prompts as Prompt[];
     if (!prompts.length) return false;
 
+<<<<<<< HEAD
     state.prompts = prompts;
     state.negativePrompt = (msg.negativePrompt as string) || '';
     state.numImages = (msg.numImages as number) || 1;
@@ -394,64 +499,165 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.promptWorkers = prompts.map(() => null);
     state.workerStats = [];
     state.nextWorkerIndex = 0;
+=======
+    chrome.storage.local.get(['authState', USAGE_STORAGE_KEY], (authData) => {
+      const authState = authData.authState as { user: unknown; premium: boolean } | undefined;
+      if (!authState?.premium) {
+        const today = new Date().toISOString().slice(0, 10);
+        const usage = authData[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
+        const count = usage && usage.date === today ? usage.count : 0;
+        const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - count);
+>>>>>>> ai_write
 
-    log(`Started (${prompts.length} prompts, ${state.numImages} img/ea, ${state.workerCount} workers)`, 'info');
-    saveState();
+        if (prompts.length > FREE_BATCH_PROMPT_LIMIT) {
+          sendResponse({
+            status: 'blocked',
+            reason: `Free plan allows max ${FREE_BATCH_PROMPT_LIMIT} prompts per batch`,
+          });
+          return;
+        }
+        if (count + prompts.length > FREE_DAILY_PROMPT_LIMIT) {
+          sendResponse({
+            status: 'blocked',
+            reason: `Free plan allows ${left} more prompts today`,
+          });
+          return;
+        }
+      }
 
-    spawnWorkers(state.workerCount);
-    sendResponse({ status: 'started' });
+      state.prompts = prompts;
+      state.negativePrompt = (msg.negativePrompt as string) || '';
+      state.numImages = (msg.numImages as number) || 1;
+      state.workerCount = (msg.workerCount as number) || DEFAULTS.workerCount;
+      state.artStyle = (msg.artStyle as string) || '';
+      state.artStyleMix = (msg.artStyleMix as string) || '';
+      state.shape = (msg.shape as string) || '';
+      state.folderName = (msg.folderName as string) || '';
+      state.prefix = (msg.prefix as string) || '';
+      state.suffix = (msg.suffix as string) || '';
+      state.filenamePattern =
+        (msg.filenamePattern as FilenamePatternKey) || DEFAULTS.filenamePattern;
+      state.perPromptFolders = (msg.perPromptFolders as boolean) ?? DEFAULTS.perPromptFolders;
+      state.currentIndex = 0;
+      state.isRunning = true;
+      state.isPaused = false;
+      state.promptStatuses = prompts.map(() => 'pending' as PromptStatus);
+      state.promptWorkers = prompts.map(() => null);
+      state.workerStats = [];
+      state.nextWorkerIndex = 0;
+      state.rotationIndex = 0;
+      state.runStartedAt = Date.now();
+      stopRotation();
 
+      log(
+        `Started (${prompts.length} prompts, ${state.numImages} img/ea, ${state.workerCount} workers)`,
+        'info'
+      );
+      saveState();
+
+      spawnWorkers(state.workerCount);
+      sendResponse({ status: 'started' });
+    });
+    return true;
   } else if (msg.action === 'STOP') {
+    if (state.runStartedAt > 0) {
+      state.elapsedMs = Date.now() - state.runStartedAt;
+    }
     state.isRunning = false;
     state.isPaused = false;
+    state.runStartedAt = 0;
+    stopRotation();
     log('Stopped by user.', 'warning');
     closeWorkers();
     saveState();
     sendResponse({ status: 'stopped' });
-
   } else if (msg.action === 'PAUSE') {
     state.isPaused = true;
+    stopRotation();
     log('Paused.', 'info');
     saveState();
     sendResponse({ status: 'paused' });
-
   } else if (msg.action === 'RESUME') {
     state.isPaused = false;
     log('Resumed.', 'info');
     saveState();
+
+    startRotation();
 
     if (hasPendingPrompts()) {
       const idleWorker = findIdleWorker();
       if (idleWorker) assignNextPrompt(idleWorker);
     }
     sendResponse({ status: 'resumed' });
-
   } else if (msg.action === 'EXPECT_IMAGES') {
     const tabId = sender.tab?.id;
     if (tabId === undefined) return false;
-    const worker = state.workers.find(w => w.tabId === tabId);
+    const worker = state.workers.find((w) => w.tabId === tabId);
     if (!worker) return false;
 
     worker.expectedCount = msg.count as number;
     worker.receivedCount = 0;
     broadcastState();
-
   } else if (msg.action === 'IMAGE_READY') {
     const tabId = sender.tab?.id;
     if (tabId === undefined || !state.isRunning) return false;
-    const worker = state.workers.find(w => w.tabId === tabId);
+    const worker = state.workers.find((w) => w.tabId === tabId);
     if (!worker || worker.currentPromptIndex === null) return false;
 
     onWorkerImageReady(worker, msg.src as string);
-
   } else if (msg.action === 'GET_STATE') {
     sendResponse(state);
-
+  } else if (msg.action === 'CLEAR') {
+    state.prompts = [];
+    state.promptStatuses = [];
+    state.promptWorkers = [];
+    state.currentIndex = 0;
+    state.isRunning = false;
+    state.isPaused = false;
+    stopRotation();
+    closeWorkers();
+    saveState();
+    sendResponse({ status: 'cleared' });
   } else if (msg.action === 'CLEAR_LOGS') {
     state.logs = [];
     log('Logs cleared.', 'info');
     saveState();
     sendResponse({ status: 'cleared' });
+  } else if (msg.action === 'GET_AUTH_STATE') {
+    chrome.storage.local.get('authState', (res) => {
+      sendResponse(res.authState ?? { user: null, premium: false });
+    });
+    return true;
+  } else if (msg.action === 'SET_PROMPT_SKIPPED') {
+    if (!state.isRunning) {
+      sendResponse({ status: 'ignored' });
+      return false;
+    }
+    const index = msg.index as number;
+    if (index < 0 || index >= state.promptStatuses.length) return false;
+    state.promptStatuses = togglePromptStatus(state.promptStatuses, index, !!msg.skipped);
+    saveState();
+    sendResponse({ status: 'updated' });
+  } else if (msg.action === 'DISABLE_PROMPTS_FROM') {
+    if (!state.isRunning) {
+      sendResponse({ status: 'ignored' });
+      return false;
+    }
+    const index = msg.index as number;
+    if (index < 0 || index >= state.prompts.length) return false;
+    state.promptStatuses = disableFrom(state.promptStatuses, index);
+    saveState();
+    sendResponse({ status: 'updated' });
+  } else if (msg.action === 'ENABLE_PROMPTS_FROM') {
+    if (!state.isRunning) {
+      sendResponse({ status: 'ignored' });
+      return false;
+    }
+    const index = msg.index as number;
+    if (index < 0 || index >= state.prompts.length) return false;
+    state.promptStatuses = enableFrom(state.promptStatuses, index);
+    saveState();
+    sendResponse({ status: 'updated' });
   }
 
   return true;
@@ -460,7 +666,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
 // ─── Tab cleanup ───
 
 chrome.tabs.onRemoved.addListener((tabId) => {
-  const idx = state.workers.findIndex(w => w.tabId === tabId);
+  const idx = state.workers.findIndex((w) => w.tabId === tabId);
   if (idx === -1) return;
 
   const worker: WorkerTab | undefined = state.workers[idx];

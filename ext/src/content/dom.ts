@@ -50,7 +50,7 @@ export function getImageIframes(): readonly HTMLIFrameElement[] {
 
 export function setFieldValue(
   element: HTMLInputElement | HTMLTextAreaElement,
-  value: string,
+  value: string
 ): void {
   const proto =
     element instanceof HTMLTextAreaElement

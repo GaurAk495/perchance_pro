@@ -1,0 +1,10 @@
+{
+  "name": "perchance-pro-backend",
+  "type": "module",
+  "private": true,
+  "dependencies": {
+    "dotenv": "^17.4.0",
+    "firebase-admin": "^13.7.0",
+    "razorpay": "^2.9.6"
+  }
+}

@@ -1,4 +1,5 @@
-console.log('Perchance Pro content script injected.');
+const generatorArea = document.querySelector('#generatorArea');
+if (generatorArea) generatorArea.remove();
 
 // ─── Controller Logic (runs in frame that has generateButtonEl) ───
 
@@ -13,14 +14,32 @@ setInterval(() => {
 
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.action === 'CMD_RUN_PROMPT') {
+<<<<<<< HEAD
         runPrompt(msg.prompt, msg.negativePrompt || '', msg.numImages || 1);
+=======
+        runPrompt(
+          msg.prompt,
+          msg.negativePrompt || '',
+          msg.numImages || 1,
+          msg.artStyle || '',
+          msg.artStyleMix || '',
+          msg.shape || ''
+        );
+>>>>>>> ai_write
         sendResponse({ status: 'started' });
       }
     });
   }
 }, 1000);
 
-function runPrompt(promptText: string, negativePrompt: string, numImages: number): void {
+function runPrompt(
+  promptText: string,
+  negativePrompt: string,
+  numImages: number,
+  artStyle: string,
+  artStyleMix: string,
+  shape: string
+): void {
   const promptEl = document.querySelector<HTMLTextAreaElement>('textarea[data-name="description"]');
   if (promptEl) {
     promptEl.value = promptText;
@@ -44,11 +63,48 @@ function runPrompt(promptText: string, negativePrompt: string, numImages: number
     numInput.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
+  if (artStyle) {
+    const artStyleSelect = document.querySelector<HTMLSelectElement>(
+      'select[data-name="artStyle"]'
+    );
+    if (artStyleSelect) {
+      artStyleSelect.value = artStyle;
+      artStyleSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      artStyleSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  if (artStyleMix) {
+    const mixSelect = document.querySelector<HTMLSelectElement>('select[data-name="artStyleMix"]');
+    if (mixSelect) {
+      mixSelect.value = artStyleMix;
+      mixSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      mixSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  if (shape) {
+    const shapeSelect = document.querySelector<HTMLSelectElement>('select[data-name="shape"]');
+    if (shapeSelect) {
+      shapeSelect.value = shape;
+      shapeSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      shapeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
   const outputArea = document.getElementById('outputAreaEl');
   if (outputArea) outputArea.innerHTML = '';
   reportedImages.clear();
 
+<<<<<<< HEAD
   chrome.runtime.sendMessage({ action: 'EXPECT_IMAGES', count: numImages, prompt: promptText });
+=======
+  chrome.runtime.sendMessage({
+    action: 'EXPECT_IMAGES',
+    count: numImages,
+    prompt: promptText,
+  });
+>>>>>>> ai_write
 
   const btn = document.getElementById('generateButtonEl') as HTMLButtonElement | null;
   if (btn) btn.click();
@@ -69,7 +125,11 @@ setInterval(() => {
     ) {
       if (!reportedImages.has(img.src)) {
         reportedImages.add(img.src);
+<<<<<<< HEAD
         console.log('[Perchance Pro] Image ready, sending to background:', img.src);
+=======
+
+>>>>>>> ai_write
         chrome.runtime.sendMessage({ action: 'IMAGE_READY', src: img.src });
       }
     }

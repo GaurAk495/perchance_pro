@@ -14,7 +14,7 @@ export async function processPrompt(
   prompt: Prompt,
   promptIndex: number,
   numImages: number,
-  negativePrompt: string,
+  negativePrompt: string
 ): Promise<void> {
   const promptBox = await waitForElement(getPromptBox);
   setFieldValue(promptBox, prompt.text);
@@ -35,8 +35,6 @@ export async function processPrompt(
 
   const downloaded = await extractAndDownloadImages(promptIndex);
   if (downloaded !== numImages) {
-    console.warn(
-      `Prompt ${promptIndex}: expected ${numImages} images, downloaded ${downloaded}`,
-    );
+    console.warn(`Prompt ${promptIndex}: expected ${numImages} images, downloaded ${downloaded}`);
   }
 }
