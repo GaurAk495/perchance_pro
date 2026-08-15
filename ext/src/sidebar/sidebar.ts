@@ -1,8 +1,23 @@
-import { DEFAULTS, ART_STLYE, type FilenamePatternKey } from '../shared/constants.ts';
+import {
+  DEFAULTS,
+  ART_STLYE,
+  ART_STLYE_MIX,
+  SHAPE_OF_IMAGE,
+  FREE_DAILY_PROMPT_LIMIT,
+  FREE_BATCH_PROMPT_LIMIT,
+  USAGE_STORAGE_KEY,
+  type FilenamePatternKey,
+} from '../shared/constants.ts';
 import { parsePromptList, promptsToText, type PromptListFormat } from '../shared/prompt-parser.ts';
 import type { PromptStatus } from '../shared/prompt-status.ts';
 import type { Prompt } from '../shared/types.ts';
-import { googleSignIn, signOut, getAuthState, setAuthPremium } from '../auth/auth-manager.ts';
+import {
+  googleSignIn,
+  signOut,
+  getAuthState,
+  setAuthPremium,
+  openCheckout,
+} from '../auth/auth-manager.ts';
 import { refreshPremium } from '../auth/premium-checker.ts';
 
 // ─── Types ───
@@ -44,6 +59,8 @@ interface AppState {
   numImages: number;
   workerCount: number;
   artStyle: string;
+  artStyleMix: string;
+  shape: string;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
   promptWorkers: (number | null)[];
@@ -56,6 +73,7 @@ interface AppState {
   workerStats: WorkerStat[];
   nextWorkerIndex: number;
   runStartedAt: number;
+  elapsedMs: number;
 }
 
 interface AuthUser {
@@ -68,6 +86,11 @@ interface AuthUser {
 interface AuthState {
   user: AuthUser | null;
   premium: boolean;
+}
+
+interface DailyUsage {
+  date: string;
+  count: number;
 }
 
 // ─── DOM refs ───
@@ -101,22 +124,26 @@ async function initAuth(): Promise<void> {
     signOutBtn.addEventListener('click', handleSignOut);
   }
 
-  const signOutUpsellBtn = document.getElementById('btn-signout-upsell');
-  if (signOutUpsellBtn) {
-    signOutUpsellBtn.addEventListener('click', handleSignOut);
-  }
-
   const refreshBtn = document.getElementById('btn-refresh-premium');
   if (refreshBtn) {
     refreshBtn.addEventListener('click', handleRefreshPremium);
+  }
+
+  const upgradeBtn = document.getElementById('btn-upgrade-banner');
+  if (upgradeBtn) {
+    upgradeBtn.addEventListener('click', () => {
+      openCheckout().catch((err) => {
+        console.error('Failed to open checkout:', err);
+      });
+    });
   }
 }
 
 function showAuthScreen(authState: AuthState): void {
   const loginScreen = document.getElementById('auth-login');
   const dashboardScreen = document.getElementById('auth-dashboard');
-  const premiumBanner = document.getElementById('premium-banner');
   const loginBtn = document.getElementById('btn-google-signin') as HTMLButtonElement | null;
+  const authError = document.getElementById('auth-error');
 
   if (!loginScreen || !dashboardScreen) return;
 
@@ -125,6 +152,7 @@ function showAuthScreen(authState: AuthState): void {
 
   if (!authState.user) {
     loginScreen.style.display = 'flex';
+    if (authError) authError.style.display = 'none';
     if (loginBtn) {
       loginBtn.disabled = false;
       loginBtn.textContent = 'Sign in with Google';
@@ -132,22 +160,8 @@ function showAuthScreen(authState: AuthState): void {
   } else {
     dashboardScreen.style.display = 'flex';
     populateUserBar(authState.user, authState.premium);
-    if (premiumBanner) {
-      premiumBanner.style.display = authState.premium ? 'none' : 'flex';
-    }
   }
-}
-
-function populateUpsell(user: AuthUser): void {
-  const avatar = document.getElementById('upsell-avatar') as HTMLImageElement | null;
-  const name = document.getElementById('upsell-name');
-  if (avatar && user.photoURL) {
-    avatar.src = user.photoURL;
-    avatar.style.display = 'block';
-  }
-  if (name) {
-    name.textContent = user.displayName || user.email;
-  }
+  renderPremiumBanner();
 }
 
 function populateUserBar(user: AuthUser, premium: boolean): void {
@@ -167,6 +181,9 @@ function populateUserBar(user: AuthUser, premium: boolean): void {
 
 async function handleGoogleSignIn(): Promise<void> {
   const btn = document.getElementById('btn-google-signin') as HTMLButtonElement | null;
+  const authError = document.getElementById('auth-error') as HTMLParagraphElement | null;
+
+  if (authError) authError.style.display = 'none';
   if (btn) {
     btn.disabled = true;
     btn.textContent = 'Signing in...';
@@ -175,7 +192,12 @@ async function handleGoogleSignIn(): Promise<void> {
   try {
     const authState = await googleSignIn();
     showAuthScreen(authState);
-  } catch {
+  } catch (err) {
+    if (authError) {
+      authError.textContent =
+        err instanceof Error ? err.message : 'Sign-in failed. Please try again.';
+      authError.style.display = 'block';
+    }
     if (btn) {
       btn.disabled = false;
       btn.textContent = 'Sign in with Google';
@@ -201,6 +223,56 @@ async function handleRefreshPremium(): Promise<void> {
   }
 
   if (btn) btn.disabled = false;
+}
+
+// ─── Free tier quota ───
+
+async function getDailyUsage(): Promise<DailyUsage> {
+  const res = await chrome.storage.local.get(USAGE_STORAGE_KEY);
+  const today = new Date().toISOString().slice(0, 10);
+  const usage = res[USAGE_STORAGE_KEY] as DailyUsage | undefined;
+  if (!usage || usage.date !== today) return { date: today, count: 0 };
+  return usage;
+}
+
+function checkFreeQuota(
+  batchSize: number,
+  usage: DailyUsage
+): { allowed: boolean; message: string } {
+  if (batchSize > FREE_BATCH_PROMPT_LIMIT) {
+    return {
+      allowed: false,
+      message: `Free plan allows max ${FREE_BATCH_PROMPT_LIMIT} prompts per batch.`,
+    };
+  }
+  const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
+  if (usage.count + batchSize > FREE_DAILY_PROMPT_LIMIT) {
+    return { allowed: false, message: `Free plan allows ${left} more prompts today.` };
+  }
+  return { allowed: true, message: '' };
+}
+
+async function renderPremiumBanner(): Promise<void> {
+  const banner = document.getElementById('premium-banner');
+  const bannerText = document.getElementById('premium-banner-text');
+  if (!banner) return;
+
+  const authState = await getAuthState();
+  if (!authState.user) {
+    banner.style.display = 'none';
+    return;
+  }
+  if (authState.premium) {
+    banner.style.display = 'none';
+    return;
+  }
+
+  const usage = await getDailyUsage();
+  const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
+  if (bannerText) {
+    bannerText.textContent = `Free plan · ${left}/${FREE_DAILY_PROMPT_LIMIT} prompts left today`;
+  }
+  banner.style.display = 'flex';
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -264,12 +336,18 @@ async function handleStart(): Promise<void> {
 
   const authState = await getAuthState();
   if (!authState.premium) {
-    const banner = document.getElementById('premium-banner');
-    if (banner) {
-      banner.style.display = 'flex';
-      banner.scrollIntoView({ behavior: 'smooth' });
+    const usage = await getDailyUsage();
+    const quota = checkFreeQuota(prompts.length, usage);
+    if (!quota.allowed) {
+      const bannerText = document.getElementById('premium-banner-text');
+      if (bannerText) bannerText.textContent = quota.message;
+      const banner = document.getElementById('premium-banner');
+      if (banner) {
+        banner.style.display = 'flex';
+        banner.scrollIntoView({ behavior: 'smooth' });
+      }
+      return;
     }
-    return;
   }
 
   chrome.runtime.sendMessage({
@@ -278,6 +356,8 @@ async function handleStart(): Promise<void> {
     numImages: readNumImages(),
     workerCount: readWorkerCount(),
     artStyle: $<HTMLSelectElement>('input-art-style-dashboard').value,
+    artStyleMix: $<HTMLSelectElement>('input-art-style-mix-dashboard').value,
+    shape: $<HTMLSelectElement>('input-shape-dashboard').value,
     negativePrompt: $<HTMLTextAreaElement>('input-negative-dashboard').value.trim(),
     folderName: $<HTMLInputElement>('input-folder').value.trim(),
     prefix: $<HTMLInputElement>('input-prefix').value.trim(),
@@ -310,14 +390,31 @@ function initSettingsForm(): void {
     if (style.label === '𝗡𝗼 𝘀𝘁𝘆𝗹𝗲') {
       opt.selected = true;
     }
-
     artStyleSelect.appendChild(opt);
+  }
+
+  const artStyleMixSelect = $<HTMLSelectElement>('input-art-style-mix-dashboard');
+  for (const mix of ART_STLYE_MIX) {
+    const opt = document.createElement('option');
+    opt.value = mix.value;
+    opt.textContent = mix.label;
+    artStyleMixSelect.appendChild(opt);
+  }
+
+  const shapeSelect = $<HTMLSelectElement>('input-shape-dashboard');
+  for (const shape of SHAPE_OF_IMAGE) {
+    const opt = document.createElement('option');
+    opt.value = shape.value;
+    opt.textContent = shape.label;
+    shapeSelect.appendChild(opt);
   }
 
   const inputs = [
     'input-workers',
     'input-num-images-dashboard',
     'input-art-style-dashboard',
+    'input-art-style-mix-dashboard',
+    'input-shape-dashboard',
     'input-negative-dashboard',
     'input-folder',
     'input-prefix',
@@ -338,6 +435,9 @@ function loadSettings(): void {
     if (s.numImages) $<HTMLInputElement>('input-num-images-dashboard').value = s.numImages;
     if (s.artStyle !== undefined)
       $<HTMLSelectElement>('input-art-style-dashboard').value = s.artStyle;
+    if (s.artStyleMix !== undefined)
+      $<HTMLSelectElement>('input-art-style-mix-dashboard').value = s.artStyleMix;
+    if (s.shape !== undefined) $<HTMLSelectElement>('input-shape-dashboard').value = s.shape;
     if (s.negativePrompt !== undefined)
       $<HTMLTextAreaElement>('input-negative-dashboard').value = s.negativePrompt;
     if (s.folderName !== undefined) $<HTMLInputElement>('input-folder').value = s.folderName;
@@ -355,6 +455,8 @@ function saveSettings(): void {
       workerCount: $<HTMLSelectElement>('input-workers').value,
       numImages: $<HTMLInputElement>('input-num-images-dashboard').value,
       artStyle: $<HTMLSelectElement>('input-art-style-dashboard').value,
+      artStyleMix: $<HTMLSelectElement>('input-art-style-mix-dashboard').value,
+      shape: $<HTMLSelectElement>('input-shape-dashboard').value,
       negativePrompt: $<HTMLTextAreaElement>('input-negative-dashboard').value,
       folderName: $<HTMLInputElement>('input-folder').value,
       prefix: $<HTMLInputElement>('input-prefix').value,
@@ -379,7 +481,8 @@ function initImportExport(): void {
   const textarea = $<HTMLTextAreaElement>('input-prompts');
 
   textarea.addEventListener('input', () => {
-    chrome.storage.local.set({ savedPrompts: textarea.value });
+    currentFormat = 'text';
+    chrome.storage.local.set({ savedPrompts: textarea.value, savedPromptsFormat: 'text' });
   });
 
   $<HTMLButtonElement>('btn-import').addEventListener('click', () => {
@@ -545,8 +648,12 @@ function renderPromptList(state: AppState): void {
           state.isRunning && status === 'pending'
             ? '<button class="prompt-skip-btn" title="Disable this prompt and all pending prompts after it">⏭ disable from here</button>'
             : '';
+        const enableBtn =
+          state.isRunning && status === 'skipped'
+            ? '<button class="prompt-skip-btn prompt-enable-from-btn" title="Enable this prompt and all skipped prompts after it">⏮ enable from here</button>'
+            : '';
         const rowClass = status === 'skipped' ? ' class="skipped"' : '';
-        return `<li data-index="${i}"${rowClass}>${checkbox}<span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p.text)}</span>${skipBtn}${tag}${negative}</li>`;
+        return `<li data-index="${i}"${rowClass}>${checkbox}<span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p.text)}</span>${skipBtn}${enableBtn}${tag}${negative}</li>`;
       })
       .join('');
 }
@@ -573,7 +680,10 @@ function initPromptListActions(): void {
     const li = btn.closest('li');
     const index = Number(li?.getAttribute('data-index'));
     if (li === null || Number.isNaN(index)) return;
-    chrome.runtime.sendMessage({ action: 'DISABLE_PROMPTS_FROM', index });
+    const action = btn.classList.contains('prompt-enable-from-btn')
+      ? 'ENABLE_PROMPTS_FROM'
+      : 'DISABLE_PROMPTS_FROM';
+    chrome.runtime.sendMessage({ action, index });
   });
 }
 
@@ -621,7 +731,7 @@ function renderStats(state: AppState): void {
   const totalImages = stats.reduce((a, s) => a + s.imagesGenerated, 0);
   const totalErrors = stats.reduce((a, s) => a + s.errors, 0);
   const totalTimeMs = stats.reduce((a, s) => a + s.totalTimeMs, 0);
-  const elapsed = state.runStartedAt > 0 ? Date.now() - state.runStartedAt : 0;
+  const elapsed = state.runStartedAt > 0 ? Date.now() - state.runStartedAt : state.elapsedMs || 0;
   const avgPerPrompt = completedPrompts > 0 ? totalTimeMs / completedPrompts : 0;
   const avgPerImage = totalImages > 0 ? totalTimeMs / totalImages : 0;
 

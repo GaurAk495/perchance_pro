@@ -1,5 +1,17 @@
-import { DEFAULTS, FILENAME_PATTERNS, type FilenamePatternKey } from '../shared/constants.ts';
-import { disableFrom, togglePromptStatus, type PromptStatus } from '../shared/prompt-status.ts';
+import {
+  DEFAULTS,
+  FILENAME_PATTERNS,
+  FREE_DAILY_PROMPT_LIMIT,
+  FREE_BATCH_PROMPT_LIMIT,
+  USAGE_STORAGE_KEY,
+  type FilenamePatternKey,
+} from '../shared/constants.ts';
+import {
+  disableFrom,
+  enableFrom,
+  togglePromptStatus,
+  type PromptStatus,
+} from '../shared/prompt-status.ts';
 import type { Prompt } from '../shared/types.ts';
 
 interface WorkerTab {
@@ -37,6 +49,8 @@ interface AppState {
   numImages: number;
   workerCount: number;
   artStyle: string;
+  artStyleMix: string;
+  shape: string;
   workers: WorkerTab[];
   promptStatuses: PromptStatus[];
   promptWorkers: (number | null)[];
@@ -51,6 +65,7 @@ interface AppState {
   foregroundIntervalMs: number;
   rotationIndex: number;
   runStartedAt: number;
+  elapsedMs: number;
 }
 
 function createInitialState(): AppState {
@@ -63,6 +78,8 @@ function createInitialState(): AppState {
     numImages: 1,
     workerCount: DEFAULTS.workerCount,
     artStyle: 'ref:optionKeyName:𝗡𝗼 𝘀𝘁𝘆𝗹𝗲',
+    artStyleMix: 'ref:optionKeyName:Not Mix',
+    shape: '512x768',
     workers: [],
     promptStatuses: [],
     promptWorkers: [],
@@ -77,6 +94,7 @@ function createInitialState(): AppState {
     foregroundIntervalMs: DEFAULTS.foregroundIntervalMs,
     rotationIndex: 0,
     runStartedAt: 0,
+    elapsedMs: 0,
   };
 }
 
@@ -109,6 +127,10 @@ chrome.storage.local.get(['appState'], (res) => {
     if (state.isRunning) {
       state.isRunning = false;
       state.isPaused = false;
+      if (state.runStartedAt > 0) {
+        state.elapsedMs = Date.now() - state.runStartedAt;
+      }
+      state.runStartedAt = 0;
       log('Restored from previous session. Idle.', 'info');
     }
     broadcastState();
@@ -252,6 +274,8 @@ function assignNextPrompt(worker: WorkerTab): void {
       negativePrompt: negative,
       numImages: state.numImages,
       artStyle: state.artStyle,
+      artStyleMix: state.artStyleMix,
+      shape: state.shape,
     },
     { frameId: worker.frameId! },
     () => {
@@ -338,6 +362,7 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
       );
       worker.busy = false;
       worker.currentPromptIndex = null;
+      incrementUsageIfFree();
       broadcastState();
 
       if (state.isRunning && !state.isPaused) {
@@ -349,10 +374,25 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
   });
 }
 
+function incrementUsageIfFree(): void {
+  chrome.storage.local.get(['authState', USAGE_STORAGE_KEY], (res) => {
+    const authState = res.authState as { user: unknown; premium: boolean } | undefined;
+    if (authState?.premium) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const usage = res[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
+    const count = usage && usage.date === today ? usage.count : 0;
+    chrome.storage.local.set({ [USAGE_STORAGE_KEY]: { date: today, count: count + 1 } });
+  });
+}
+
 function checkAllComplete(): void {
   if (!hasPendingPrompts() && state.workers.every((w) => !w.busy)) {
+    if (state.runStartedAt > 0) {
+      state.elapsedMs = Date.now() - state.runStartedAt;
+    }
     state.isRunning = false;
     state.isPaused = false;
+    state.runStartedAt = 0;
     stopRotation();
     log('=== All prompts completed! ===', 'success');
     closeWorkers();
@@ -440,11 +480,28 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const prompts = msg.prompts as Prompt[];
     if (!prompts.length) return false;
 
-    chrome.storage.local.get('authState', (authData) => {
+    chrome.storage.local.get(['authState', USAGE_STORAGE_KEY], (authData) => {
       const authState = authData.authState as { user: unknown; premium: boolean } | undefined;
       if (!authState?.premium) {
-        sendResponse({ status: 'blocked', reason: 'Premium required' });
-        return;
+        const today = new Date().toISOString().slice(0, 10);
+        const usage = authData[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
+        const count = usage && usage.date === today ? usage.count : 0;
+        const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - count);
+
+        if (prompts.length > FREE_BATCH_PROMPT_LIMIT) {
+          sendResponse({
+            status: 'blocked',
+            reason: `Free plan allows max ${FREE_BATCH_PROMPT_LIMIT} prompts per batch`,
+          });
+          return;
+        }
+        if (count + prompts.length > FREE_DAILY_PROMPT_LIMIT) {
+          sendResponse({
+            status: 'blocked',
+            reason: `Free plan allows ${left} more prompts today`,
+          });
+          return;
+        }
       }
 
       state.prompts = prompts;
@@ -452,6 +509,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       state.numImages = (msg.numImages as number) || 1;
       state.workerCount = (msg.workerCount as number) || DEFAULTS.workerCount;
       state.artStyle = (msg.artStyle as string) || '';
+      state.artStyleMix = (msg.artStyleMix as string) || '';
+      state.shape = (msg.shape as string) || '';
       state.folderName = (msg.folderName as string) || '';
       state.prefix = (msg.prefix as string) || '';
       state.suffix = (msg.suffix as string) || '';
@@ -480,8 +539,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     });
     return true;
   } else if (msg.action === 'STOP') {
+    if (state.runStartedAt > 0) {
+      state.elapsedMs = Date.now() - state.runStartedAt;
+    }
     state.isRunning = false;
     state.isPaused = false;
+    state.runStartedAt = 0;
     stopRotation();
     log('Stopped by user.', 'warning');
     closeWorkers();
@@ -562,6 +625,16 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const index = msg.index as number;
     if (index < 0 || index >= state.prompts.length) return false;
     state.promptStatuses = disableFrom(state.promptStatuses, index);
+    saveState();
+    sendResponse({ status: 'updated' });
+  } else if (msg.action === 'ENABLE_PROMPTS_FROM') {
+    if (!state.isRunning) {
+      sendResponse({ status: 'ignored' });
+      return false;
+    }
+    const index = msg.index as number;
+    if (index < 0 || index >= state.prompts.length) return false;
+    state.promptStatuses = enableFrom(state.promptStatuses, index);
     saveState();
     sendResponse({ status: 'updated' });
   }

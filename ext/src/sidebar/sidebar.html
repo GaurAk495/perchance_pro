@@ -39,22 +39,7 @@
           </svg>
           Sign in with Google
         </button>
-      </div>
-    </div>
-
-    <!-- Auth: Upsell Screen -->
-    <div id="auth-upsell" class="auth-screen" style="display: none">
-      <div class="auth-container">
-        <img id="upsell-avatar" class="auth-avatar" src="" alt="" style="display: none" />
-        <div id="upsell-name" class="auth-name"></div>
-        <div class="premium-badge locked">Premium Required</div>
-        <p class="upsell-text">Upgrade to premium to use Perchance Pro.</p>
-        <ul class="upsell-features">
-          <li>Bulk image generation</li>
-          <li>Multiple worker support</li>
-          <li>Custom filenames and folders</li>
-        </ul>
-        <button id="btn-signout-upsell" class="btn-text">Sign out</button>
+        <p id="auth-error" class="auth-error" style="display: none"></p>
       </div>
     </div>
 
@@ -71,13 +56,17 @@
       </div>
 
       <div id="premium-banner" class="premium-banner" style="display: none">
-        <span>Premium required to run generation</span>
+        <span id="premium-banner-text">Free plan</span>
+        <button id="btn-upgrade-banner" class="btn-upgrade">Upgrade</button>
       </div>
 
       <div id="app">
         <div id="header">
-          <h1>Perchance Pro</h1>
-          <span id="connection-badge" class="offline">◉ Offline</span>
+          <div id="header-brand">
+            <img src="public/icon128.png" alt="Logo" id="header-logo" />
+            <h1>Perchance Pro</h1>
+          </div>
+          <span id="connection-badge" class="offline">Offline</span>
         </div>
 
         <div id="tab-bar">
@@ -102,6 +91,11 @@
               </p>
               <p><code>!text</code> right after a prompt = that prompt's negative.</p>
               <p>
+                <code>prompt | negative</code> or <code>prompt ! negative</code> on the same line =
+                that prompt's negative (a <code> | </code> or <code> ! </code> with spaces around
+                it).
+              </p>
+              <p>
                 <code>&lt;negative&gt;</code> on its own line = prompt is everything above it (may
                 be multiple lines), negative is everything below it until a blank line.
               </p>
@@ -119,6 +113,14 @@
               <label>
                 Art Style
                 <select id="input-art-style-dashboard"></select>
+              </label>
+              <label>
+                Art Style Mix
+                <select id="input-art-style-mix-dashboard"></select>
+              </label>
+              <label>
+                Shape
+                <select id="input-shape-dashboard"></select>
               </label>
               <label>
                 Images / Prompt
@@ -213,6 +215,7 @@
           </div>
         </div>
       </div>
+      <div id="footer">Made with &#10084; by AkGaurDev</div>
     </div>
     <!-- /auth-dashboard -->
 

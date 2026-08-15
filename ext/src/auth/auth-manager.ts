@@ -27,7 +27,7 @@ export async function googleSignIn(): Promise<AuthState> {
         reject(new Error(chrome.runtime.lastError?.message ?? 'Google login failed'));
         return;
       }
-      resolve(token);
+      resolve(token as string);
     });
   });
 
@@ -53,7 +53,7 @@ export async function googleSignIn(): Promise<AuthState> {
 export async function signOut(): Promise<void> {
   const token = await new Promise<string | null>((resolve) => {
     chrome.identity.getAuthToken({ interactive: false }, (token) => {
-      resolve(token ?? null);
+      resolve((token as string) ?? null);
     });
   });
 
@@ -82,4 +82,12 @@ export async function setAuthPremium(premium: boolean): Promise<void> {
     const updated: AuthState = { ...current, premium };
     await chrome.storage.local.set({ [STORAGE_KEY]: updated });
   }
+}
+
+export async function openCheckout(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return;
+  const token = await user.getIdToken();
+  const url = `https://auto-perchance.vercel.app/upgrade.html?app=perchance_pro&token=${encodeURIComponent(token)}`;
+  await chrome.tabs.create({ url });
 }
