@@ -1,10 +1,15 @@
 {
   "manifest_version": 3,
   "name": "Perchance Pro",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "description": "Bulk image generation automation for Perchance",
   "permissions": ["storage", "downloads", "sidePanel", "identity"],
   "host_permissions": ["https://*.perchance.org/*"],
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAxFEKfaQrNtYqTf7aKHFT9cIEHkNmoe2aG34eZvh00e4FEMIgwU9GfLaFpSO3Ue4PjcnSedL5ETxB+iEPvI3Ul51rygFOkpxzEJm5x3OitsyFYkYZ5bGMaZxY/rYASVck1GnRxg8btgP3GR6u7QLI6wiNFIa1zRUqdQoMLflthzl6xMpIA3O8UO8AZu8HhmnoBEARw2ttKAxJL+1nlV2FmnqIP9uvoZWixpd/7lA74Ly3ctBVL7UG7suXJulgGHOwkoxXh7yzESrbXZK59okEUDtXpPKCrpuPyKi4i8Dq1wVpiY77S/EvE23DjvOnISHrXExoloGGZKIW9h3yew7WewIDAQAB",
+  "oauth2": {
+    "client_id": "52923835846-sm3hor8d9rabkafdg9834mtoj0pss15r.apps.googleusercontent.com",
+    "scopes": ["openid", "email", "profile"]
+  },
   "background": {
     "service_worker": "background.js"
   },
@@ -20,6 +25,18 @@
     }
   ],
   "action": {
-    "default_title": "Perchance Pro"
+    "default_title": "Perchance Pro",
+    "default_icon": {
+      "16": "public/icon16.png",
+      "32": "public/icon32.png",
+      "48": "public/icon48.png",
+      "128": "public/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "public/icon16.png",
+    "32": "public/icon32.png",
+    "48": "public/icon48.png",
+    "128": "public/icon128.png"
   }
 }

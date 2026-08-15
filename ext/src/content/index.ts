@@ -1,5 +1,3 @@
-console.log('Perchance Pro content script injected.');
-
 const generatorArea = document.querySelector('#generatorArea');
 if (generatorArea) generatorArea.remove();
 
@@ -16,7 +14,14 @@ setInterval(() => {
 
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.action === 'CMD_RUN_PROMPT') {
-        runPrompt(msg.prompt, msg.negativePrompt || '', msg.numImages || 1, msg.artStyle || '');
+        runPrompt(
+          msg.prompt,
+          msg.negativePrompt || '',
+          msg.numImages || 1,
+          msg.artStyle || '',
+          msg.artStyleMix || '',
+          msg.shape || ''
+        );
         sendResponse({ status: 'started' });
       }
     });
@@ -27,7 +32,9 @@ function runPrompt(
   promptText: string,
   negativePrompt: string,
   numImages: number,
-  artStyle: string
+  artStyle: string,
+  artStyleMix: string,
+  shape: string
 ): void {
   const promptEl = document.querySelector<HTMLTextAreaElement>('textarea[data-name="description"]');
   if (promptEl) {
@@ -56,11 +63,28 @@ function runPrompt(
     const artStyleSelect = document.querySelector<HTMLSelectElement>(
       'select[data-name="artStyle"]'
     );
-    console.log('debug', artStyleSelect, artStyle);
     if (artStyleSelect) {
       artStyleSelect.value = artStyle;
       artStyleSelect.dispatchEvent(new Event('input', { bubbles: true }));
       artStyleSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  if (artStyleMix) {
+    const mixSelect = document.querySelector<HTMLSelectElement>('select[data-name="artStyleMix"]');
+    if (mixSelect) {
+      mixSelect.value = artStyleMix;
+      mixSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      mixSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+  }
+
+  if (shape) {
+    const shapeSelect = document.querySelector<HTMLSelectElement>('select[data-name="shape"]');
+    if (shapeSelect) {
+      shapeSelect.value = shape;
+      shapeSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      shapeSelect.dispatchEvent(new Event('change', { bubbles: true }));
     }
   }
 
@@ -93,7 +117,7 @@ setInterval(() => {
     ) {
       if (!reportedImages.has(img.src)) {
         reportedImages.add(img.src);
-        console.log('[Perchance Pro] Image ready, sending to background:', img.src);
+
         chrome.runtime.sendMessage({ action: 'IMAGE_READY', src: img.src });
       }
     }
