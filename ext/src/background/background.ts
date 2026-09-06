@@ -103,7 +103,7 @@ let state: AppState = createInitialState();
 // ─── Init ───
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => { });
+  chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch(() => {});
 });
 
 chrome.storage.local.get(['appState'], (res) => {
@@ -142,12 +142,12 @@ chrome.storage.local.get(['appState'], (res) => {
 // ─── State management ───
 
 function saveState(): void {
-  chrome.storage.local.set({ appState: state }).catch(() => { });
+  chrome.storage.local.set({ appState: state }).catch(() => {});
   broadcastState();
 }
 
 function broadcastState(): void {
-  chrome.runtime.sendMessage({ action: 'STATE_UPDATED', state }).catch(() => { });
+  chrome.runtime.sendMessage({ action: 'STATE_UPDATED', state }).catch(() => {});
 }
 
 function log(msg: string, type: LogEntry['type'] = 'info', workerIndex?: number): void {
@@ -401,12 +401,10 @@ function checkAllComplete(): void {
 
 function closeWorkers(): void {
   for (const w of state.workers) {
-    chrome.tabs.remove(w.tabId).catch(() => { });
+    chrome.tabs.remove(w.tabId).catch(() => {});
   }
   state.workers = [];
 }
-<<<<<<< HEAD
-=======
 
 let rotationTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -438,7 +436,6 @@ function stopRotation(): void {
   state.rotationIndex = 0;
 }
 
->>>>>>> ai_write
 function spawnWorkers(count: number): void {
   const effectiveCount = Math.min(count, state.prompts.length);
   for (let i = 0; i < effectiveCount; i++) {
@@ -482,24 +479,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     const prompts = msg.prompts as Prompt[];
     if (!prompts.length) return false;
 
-<<<<<<< HEAD
-    state.prompts = prompts;
-    state.negativePrompt = (msg.negativePrompt as string) || '';
-    state.numImages = (msg.numImages as number) || 1;
-    state.workerCount = (msg.workerCount as number) || DEFAULTS.workerCount;
-    state.folderName = (msg.folderName as string) || '';
-    state.prefix = (msg.prefix as string) || '';
-    state.suffix = (msg.suffix as string) || '';
-    state.filenamePattern = (msg.filenamePattern as FilenamePatternKey) || DEFAULTS.filenamePattern;
-    state.perPromptFolders = (msg.perPromptFolders as boolean) ?? DEFAULTS.perPromptFolders;
-    state.currentIndex = 0;
-    state.isRunning = true;
-    state.isPaused = false;
-    state.promptStatuses = prompts.map(() => 'pending' as PromptStatus);
-    state.promptWorkers = prompts.map(() => null);
-    state.workerStats = [];
-    state.nextWorkerIndex = 0;
-=======
     chrome.storage.local.get(['authState', USAGE_STORAGE_KEY], (authData) => {
       const authState = authData.authState as { user: unknown; premium: boolean } | undefined;
       if (!authState?.premium) {
@@ -507,7 +486,6 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const usage = authData[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
         const count = usage && usage.date === today ? usage.count : 0;
         const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - count);
->>>>>>> ai_write
 
         if (prompts.length > FREE_BATCH_PROMPT_LIMIT) {
           sendResponse({
@@ -625,7 +603,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ status: 'cleared' });
   } else if (msg.action === 'GET_AUTH_STATE') {
     chrome.storage.local.get('authState', (res) => {
-      sendResponse(res.authState ?? { user: null, premium: false });
+      sendResponse(res.authState ?? { user: null, premium: false, plan: 'none', planActivatedAt: null });
     });
     return true;
   } else if (msg.action === 'SET_PROMPT_SKIPPED') {

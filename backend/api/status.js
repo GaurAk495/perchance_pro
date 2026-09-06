@@ -46,9 +46,11 @@ export default async function handler(req, res) {
         let plan = userData.plan || 'none';
 
         // Check if monthly plan has expired (valid for 30 days)
+        let planExpiry = null;
         if (plan === 'monthly' && userData.monthlyStartedAt) {
             const startDate = new Date(userData.monthlyStartedAt);
             const expiryDate = new Date(startDate.getTime() + 30 * 24 * 60 * 60 * 1000);
+            planExpiry = expiryDate.toISOString();
             if (new Date() > expiryDate) {
                 isPremium = false;
                 plan = 'none';
@@ -72,7 +74,8 @@ export default async function handler(req, res) {
 
         return res.status(200).json({
             isPremium,
-            plan
+            plan,
+            planExpiry
         });
 
     } catch (error) {

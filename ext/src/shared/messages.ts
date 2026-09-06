@@ -72,4 +72,6 @@ export interface AuthStateResponse {
     photoURL: string;
   } | null;
   premium: boolean;
+  plan: string;
+  planActivatedAt: number | null;
 }

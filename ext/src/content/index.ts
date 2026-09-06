@@ -14,9 +14,6 @@ setInterval(() => {
 
     chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
       if (msg.action === 'CMD_RUN_PROMPT') {
-<<<<<<< HEAD
-        runPrompt(msg.prompt, msg.negativePrompt || '', msg.numImages || 1);
-=======
         runPrompt(
           msg.prompt,
           msg.negativePrompt || '',
@@ -25,7 +22,6 @@ setInterval(() => {
           msg.artStyleMix || '',
           msg.shape || ''
         );
->>>>>>> ai_write
         sendResponse({ status: 'started' });
       }
     });
@@ -96,15 +92,11 @@ function runPrompt(
   if (outputArea) outputArea.innerHTML = '';
   reportedImages.clear();
 
-<<<<<<< HEAD
-  chrome.runtime.sendMessage({ action: 'EXPECT_IMAGES', count: numImages, prompt: promptText });
-=======
   chrome.runtime.sendMessage({
     action: 'EXPECT_IMAGES',
     count: numImages,
     prompt: promptText,
   });
->>>>>>> ai_write
 
   const btn = document.getElementById('generateButtonEl') as HTMLButtonElement | null;
   if (btn) btn.click();
@@ -125,11 +117,6 @@ setInterval(() => {
     ) {
       if (!reportedImages.has(img.src)) {
         reportedImages.add(img.src);
-<<<<<<< HEAD
-        console.log('[Perchance Pro] Image ready, sending to background:', img.src);
-=======
-
->>>>>>> ai_write
         chrome.runtime.sendMessage({ action: 'IMAGE_READY', src: img.src });
       }
     }

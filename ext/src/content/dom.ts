@@ -1,9 +1,9 @@
-import { IFRAME_ID, SELECTORS } from "../shared/constants.ts";
+import { IFRAME_ID, SELECTORS } from '../shared/constants.ts';
 
 function getIframeDocument(): Document | null {
   const iframe = document.getElementById(IFRAME_ID) as HTMLIFrameElement | null;
   if (!iframe) return null;
-  console.log("iframe", iframe);
+  console.log('iframe', iframe);
   return iframe.contentDocument ?? iframe.contentWindow?.document ?? null;
 }
 
@@ -41,11 +41,9 @@ export function getImageIframes(): readonly HTMLIFrameElement[] {
   const doc = getIframeDocument();
   if (!doc) return [];
   const container = doc.querySelector(SELECTORS.outputArea);
-  console.log("container", container);
+  console.log('container', container);
   if (!container) return [];
-  return Array.from(
-    container.querySelectorAll<HTMLIFrameElement>(SELECTORS.imageIframe),
-  );
+  return Array.from(container.querySelectorAll<HTMLIFrameElement>(SELECTORS.imageIframe));
 }
 
 export function setFieldValue(
@@ -57,15 +55,15 @@ export function setFieldValue(
       ? HTMLTextAreaElement.prototype
       : HTMLInputElement.prototype;
 
-  const nativeSetter = Object.getOwnPropertyDescriptor(proto, "value")?.set;
+  const nativeSetter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
   if (nativeSetter) {
     nativeSetter.call(element, value);
   } else {
     element.value = value;
   }
 
-  element.dispatchEvent(new Event("input", { bubbles: true }));
-  element.dispatchEvent(new Event("change", { bubbles: true }));
+  element.dispatchEvent(new Event('input', { bubbles: true }));
+  element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
 export function clickButton(button: HTMLButtonElement): void {

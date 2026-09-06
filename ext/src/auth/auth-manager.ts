@@ -16,6 +16,8 @@ export interface AuthUser {
 export interface AuthState {
   user: AuthUser | null;
   premium: boolean;
+  plan: string;
+  planActivatedAt: number | null;
 }
 
 const STORAGE_KEY = 'authState';
@@ -42,9 +44,14 @@ export async function googleSignIn(): Promise<AuthState> {
     photoURL: firebaseUser.photoURL ?? '',
   };
 
-  const premium = await checkPremium(firebaseUser.uid);
+  const status = await checkPremium(firebaseUser.uid);
 
-  const authState: AuthState = { user, premium };
+  const authState: AuthState = {
+    user,
+    premium: status.premium,
+    plan: status.plan,
+    planActivatedAt: status.planActivatedAt,
+  };
   await chrome.storage.local.set({ [STORAGE_KEY]: authState });
 
   return authState;
@@ -73,13 +80,22 @@ export async function signOut(): Promise<void> {
 
 export async function getAuthState(): Promise<AuthState> {
   const result = await chrome.storage.local.get(STORAGE_KEY);
-  return (result[STORAGE_KEY] as AuthState) ?? { user: null, premium: false };
+  return (result[STORAGE_KEY] as AuthState) ?? {
+    user: null,
+    premium: false,
+    plan: 'none',
+    planActivatedAt: null,
+  };
 }
 
-export async function setAuthPremium(premium: boolean): Promise<void> {
+export async function setAuthPremium(
+  premium: boolean,
+  plan: string = 'none',
+  planActivatedAt: number | null = null,
+): Promise<void> {
   const current = await getAuthState();
   if (current.user) {
-    const updated: AuthState = { ...current, premium };
+    const updated: AuthState = { ...current, premium, plan, planActivatedAt };
     await chrome.storage.local.set({ [STORAGE_KEY]: updated });
   }
 }

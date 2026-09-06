@@ -86,6 +86,8 @@ interface AuthUser {
 interface AuthState {
   user: AuthUser | null;
   premium: boolean;
+  plan: string;
+  planActivatedAt: number | null;
 }
 
 interface DailyUsage {
@@ -192,15 +194,40 @@ async function renderAccount(authState: AuthState): Promise<void> {
     badge.className = authState.premium ? 'premium-badge active' : 'premium-badge locked';
   }
   if (planValue) {
-    planValue.textContent = authState.premium ? 'Premium' : 'Free plan';
+    if (authState.premium) {
+      planValue.textContent = authState.plan === 'lifetime' ? 'Lifetime Premium' : 'Monthly Premium';
+    } else {
+      planValue.textContent = 'Free plan';
+    }
   }
   if (quota) {
     if (authState.premium) {
-      quota.textContent = 'Unlimited prompts — enjoy!';
+      if (authState.plan === 'monthly' && authState.planActivatedAt) {
+        const expiryMs = authState.planActivatedAt + 30 * 24 * 60 * 60 * 1000;
+        const daysLeft = Math.max(0, Math.ceil((expiryMs - Date.now()) / (24 * 60 * 60 * 1000)));
+        const dateStr = new Date(expiryMs).toLocaleDateString(undefined, {
+          year: 'numeric',
+          month: 'short',
+          day: 'numeric',
+        });
+        quota.textContent = `Unlimited — expires ${dateStr} (${daysLeft} days left)`;
+      } else {
+        quota.textContent = 'Unlimited prompts — enjoy!';
+      }
     } else {
       const usage = await getDailyUsage();
       const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
       quota.textContent = `${left}/${FREE_DAILY_PROMPT_LIMIT} prompts left today`;
+    }
+  }
+
+  // Hide upgrade button for premium users
+  const upgradeBtn = document.getElementById('btn-upgrade-account');
+  if (upgradeBtn) {
+    if (authState.premium) {
+      upgradeBtn.style.display = 'none';
+    } else {
+      upgradeBtn.style.display = '';
     }
   }
 }
@@ -233,7 +260,7 @@ async function handleGoogleSignIn(): Promise<void> {
 
 async function handleSignOut(): Promise<void> {
   await signOut();
-  showAuthScreen({ user: null, premium: false });
+  showAuthScreen({ user: null, premium: false, plan: 'none', planActivatedAt: null });
 }
 
 async function handleRefreshPremium(): Promise<void> {
@@ -242,8 +269,8 @@ async function handleRefreshPremium(): Promise<void> {
 
   const current = await getAuthState();
   if (current.user) {
-    const premium = await refreshPremium(current.user.uid);
-    await setAuthPremium(premium);
+    const status = await refreshPremium(current.user.uid);
+    await setAuthPremium(status.premium, status.plan, status.planActivatedAt);
     const updated = await getAuthState();
     showAuthScreen(updated);
   }
@@ -660,12 +687,6 @@ function renderPromptList(state: AppState): void {
         };
         const icon = iconMap[status] || '○';
         const wIdx = state.promptWorkers?.[i];
-<<<<<<< HEAD
-        const tag = (wIdx !== undefined && wIdx !== null)
-          ? `<span class="worker-tag wtag-${wIdx}" style="font-size: 8px; padding: 0.5px 3.5px; border-radius: 2px;">w${wIdx}</span>`
-          : '';
-        return `<li><span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p)}</span>${tag}</li>`;
-=======
         const tag =
           wIdx !== undefined && wIdx !== null
             ? `<span class="worker-tag wtag-${wIdx}" style="font-size: 8px; padding: 0.5px 3.5px; border-radius: 2px;">w${wIdx}</span>`
@@ -686,7 +707,6 @@ function renderPromptList(state: AppState): void {
             : '';
         const rowClass = status === 'skipped' ? ' class="skipped"' : '';
         return `<li data-index="${i}"${rowClass}>${checkbox}<span class="status-icon ${status}">${icon}</span><span class="prompt-num">${i + 1}.</span><span class="prompt-text">${escapeHtml(p.text)}</span>${skipBtn}${enableBtn}${tag}${negative}</li>`;
->>>>>>> ai_write
       })
       .join('');
 }
