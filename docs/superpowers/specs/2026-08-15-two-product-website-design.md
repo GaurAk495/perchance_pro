@@ -7,7 +7,7 @@ Rebuild the shared frontend (deployed at `https://auto-perchance.vercel.app/`) i
 ## Decisions
 
 - **Visual identity**: Reuse the existing site exactly — dark `#050a10` background, particle canvas, Inter font, blue `#38bdf8` + gold `#f59e0b` accents, 16px rounded glass cards.
-- **Product naming**: Pro product is branded **Auto Perchance Pro** on the site (the extension manifest still says "Perchance Pro"; renaming the extension is a separate task).
+- **Product naming**: Pro product is branded **Auto Perchance Pro** on the site (the extension manifest still says "Auto Perchance Pro"; renaming the extension is a separate task).
 - **Positioning**: Auto Perchance Pro is the flagship — gold "Recommended" badge, primary CTAs point to it.
 - **Pricing is per product**:
   - Auto Perchance Pro: monthly `$7`, lifetime `$40` (already in `backend/utils/pricingData.js`).
@@ -137,7 +137,7 @@ SEO: update title/description/keywords/OG/JSON-LD to cover both products (Pro fl
 
 ## Out of Scope
 
-- Renaming the extension from "Perchance Pro" to "Auto Perchance Pro" (manifest, sidebar, store listing).
+- Renaming the extension from "Auto Perchance Pro" to "Auto Perchance Pro" (manifest, sidebar, store listing).
 - Fixing the merge-conflict markers in `ext/src/sidebar/sidebar.ts` (lines ~663-689).
 - Backend API changes (`api/*`), webhook, Firestore, extension quota logic.
 - Auto Perchance backend changes (unchanged, serves its own `/api/*`).

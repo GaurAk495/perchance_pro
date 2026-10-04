@@ -1,8 +1,9 @@
 import {
   DEFAULTS,
   FILENAME_PATTERNS,
-  FREE_DAILY_PROMPT_LIMIT,
+  FREE_DAILY_IMAGE_LIMIT,
   FREE_BATCH_PROMPT_LIMIT,
+  PERCHANCE_URL,
   USAGE_STORAGE_KEY,
   type FilenamePatternKey,
 } from '../shared/constants.ts';
@@ -24,6 +25,7 @@ interface WorkerTab {
   receivedCount: number;
   promptStartedAt: number;
   tabCreatedAt: number;
+  registrationAttempts: number;
 }
 
 interface LogEntry {
@@ -66,6 +68,8 @@ interface AppState {
   rotationIndex: number;
   runStartedAt: number;
   elapsedMs: number;
+  contentWarningPresent: boolean;
+  perchanceTabOpen: boolean;
 }
 
 function createInitialState(): AppState {
@@ -95,6 +99,8 @@ function createInitialState(): AppState {
     rotationIndex: 0,
     runStartedAt: 0,
     elapsedMs: 0,
+    contentWarningPresent: false,
+    perchanceTabOpen: false,
   };
 }
 
@@ -125,13 +131,19 @@ chrome.storage.local.get(['appState'], (res) => {
     }
 
     if (state.isRunning) {
-      state.isRunning = false;
-      state.isPaused = false;
-      if (state.runStartedAt > 0) {
-        state.elapsedMs = Date.now() - state.runStartedAt;
+      if (state.isPaused || state.workers.length === 0) {
+        state.isRunning = false;
+        state.isPaused = false;
+        if (state.runStartedAt > 0) {
+          state.elapsedMs = Date.now() - state.runStartedAt;
+        }
+        state.runStartedAt = 0;
+        stopRotation();
+        log('Restored from previous session. Idle.', 'info');
+      } else {
+        startRotation();
+        log('Restored from previous session. Resumed rotation.', 'info');
       }
-      state.runStartedAt = 0;
-      log('Restored from previous session. Idle.', 'info');
     }
     broadcastState();
   } else {
@@ -149,6 +161,27 @@ function saveState(): void {
 function broadcastState(): void {
   chrome.runtime.sendMessage({ action: 'STATE_UPDATED', state }).catch(() => {});
 }
+
+// ─── Perchance presence + content-warning gate ───
+
+const PERCHANCE_QUERY_URLS = ['https://perchance.org/*'];
+
+function refreshPerchancePresence(): void {
+  chrome.tabs.query({ url: PERCHANCE_QUERY_URLS }, (tabs) => {
+    if (chrome.runtime.lastError) return;
+    const open = tabs.length > 0;
+    if (open !== state.perchanceTabOpen) {
+      state.perchanceTabOpen = open;
+      if (!open) state.contentWarningPresent = false;
+      saveState();
+    }
+  });
+}
+
+chrome.tabs.onCreated.addListener(refreshPerchancePresence);
+chrome.tabs.onUpdated.addListener(refreshPerchancePresence);
+chrome.tabs.onRemoved.addListener(refreshPerchancePresence);
+refreshPerchancePresence();
 
 function log(msg: string, type: LogEntry['type'] = 'info', workerIndex?: number): void {
   const ts = new Date().toLocaleTimeString();
@@ -194,6 +227,7 @@ function createWorkerTab(): void {
         receivedCount: 0,
         promptStartedAt: 0,
         tabCreatedAt: Date.now(),
+        registrationAttempts: 0,
       });
       getOrCreateWorkerStat(workerIndex);
       log(`Worker tab created (id=${tabId}).`, 'info', workerIndex);
@@ -203,11 +237,27 @@ function createWorkerTab(): void {
     }
   );
 }
+const MAX_REGISTRATION_ATTEMPTS = 5;
+
 function checkWorkerRegistration(tabId: number): void {
   const worker = state.workers.find((w) => w.tabId === tabId);
   if (!worker) return;
   if (worker.frameId === null) {
-    log(`Worker tab not responding. Reloading...`, 'warning', worker.workerIndex);
+    worker.registrationAttempts++;
+    if (worker.registrationAttempts >= MAX_REGISTRATION_ATTEMPTS) {
+      log(
+        `Worker tab failed to register after ${MAX_REGISTRATION_ATTEMPTS} attempts. Giving up.`,
+        'error',
+        worker.workerIndex
+      );
+      handleWorkerFailure(worker);
+      return;
+    }
+    log(
+      `Worker tab not responding. Reloading... (attempt ${worker.registrationAttempts}/${MAX_REGISTRATION_ATTEMPTS})`,
+      'warning',
+      worker.workerIndex
+    );
     chrome.tabs.reload(tabId, () => {
       worker.tabCreatedAt = Date.now();
       setTimeout(() => checkWorkerRegistration(tabId), DEFAULTS.workerCreateTimeout);
@@ -339,13 +389,14 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
   const filename = `${folder}${baseName}.png`;
 
   chrome.downloads.download({ url: src, filename, saveAs: DEFAULTS.saveAs }, () => {
+    const stat = getOrCreateWorkerStat(worker.workerIndex);
     if (chrome.runtime.lastError) {
       log(`Download failed: ${chrome.runtime.lastError.message}`, 'error', worker.workerIndex);
+    } else {
+      worker.receivedCount++;
+      stat.imagesGenerated++;
+      incrementUsageIfFree(1);
     }
-    worker.receivedCount++;
-    const stat = getOrCreateWorkerStat(worker.workerIndex);
-    stat.imagesGenerated++;
-    log(`[${promptIdx + 1}] ${filename}`, 'success', worker.workerIndex);
     broadcastState();
 
     if (worker.expectedCount > 0 && worker.receivedCount >= worker.expectedCount) {
@@ -361,7 +412,6 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
       );
       worker.busy = false;
       worker.currentPromptIndex = null;
-      incrementUsageIfFree();
       broadcastState();
 
       if (state.isRunning && !state.isPaused) {
@@ -373,14 +423,14 @@ function onWorkerImageReady(worker: WorkerTab, src: string): void {
   });
 }
 
-function incrementUsageIfFree(): void {
+function incrementUsageIfFree(images: number): void {
   chrome.storage.local.get(['authState', USAGE_STORAGE_KEY], (res) => {
     const authState = res.authState as { user: unknown; premium: boolean } | undefined;
     if (authState?.premium) return;
     const today = new Date().toISOString().slice(0, 10);
     const usage = res[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
     const count = usage && usage.date === today ? usage.count : 0;
-    chrome.storage.local.set({ [USAGE_STORAGE_KEY]: { date: today, count: count + 1 } });
+    chrome.storage.local.set({ [USAGE_STORAGE_KEY]: { date: today, count: count + images } });
   });
 }
 
@@ -437,9 +487,28 @@ function stopRotation(): void {
 }
 
 function spawnWorkers(count: number): void {
+  // Reuse Perchance tabs the user already has open (e.g. via "Open Perchance Now"):
+  // they auto-register as workers through REGISTER_CONTROLLER.
+  const reusable = state.workers.filter((w) => w.frameId !== null && !w.busy);
   const effectiveCount = Math.min(count, state.prompts.length);
-  for (let i = 0; i < effectiveCount; i++) {
+  const toCreate = Math.max(0, effectiveCount - reusable.length);
+  if (reusable.length > 0) {
+    log(`Reusing ${reusable.length} open Perchance tab(s) as workers.`, 'info');
+    for (const worker of reusable) {
+      getOrCreateWorkerStat(worker.workerIndex);
+    }
+  }
+  for (let i = 0; i < toCreate; i++) {
     createWorkerTab();
+  }
+  // Kick off already-registered idle workers right away; newly created tabs
+  // pick up work themselves when they register.
+  if (state.isRunning && !state.isPaused) {
+    let idle = findIdleWorker();
+    while (idle && hasPendingPrompts()) {
+      assignNextPrompt(idle);
+      idle = findIdleWorker();
+    }
   }
 }
 // ─── Message handler ───
@@ -462,12 +531,14 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         receivedCount: 0,
         promptStartedAt: 0,
         tabCreatedAt: Date.now(),
+        registrationAttempts: 0,
       };
       state.workers.push(worker);
       getOrCreateWorkerStat(workerIndex);
     }
 
     worker.frameId = sender.frameId ?? null;
+    worker.registrationAttempts = 0;
     log(`Worker registered.`, 'info', worker.workerIndex);
 
     if (state.isRunning && !state.isPaused) {
@@ -485,7 +556,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
         const today = new Date().toISOString().slice(0, 10);
         const usage = authData[USAGE_STORAGE_KEY] as { date: string; count: number } | undefined;
         const count = usage && usage.date === today ? usage.count : 0;
-        const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - count);
+        const left = Math.max(0, FREE_DAILY_IMAGE_LIMIT - count);
+        const numImages = (msg.numImages as number) || 1;
+        const batchImages = prompts.length * numImages;
 
         if (prompts.length > FREE_BATCH_PROMPT_LIMIT) {
           sendResponse({
@@ -494,10 +567,10 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
           });
           return;
         }
-        if (count + prompts.length > FREE_DAILY_PROMPT_LIMIT) {
+        if (count + batchImages > FREE_DAILY_IMAGE_LIMIT) {
           sendResponse({
             status: 'blocked',
-            reason: `Free plan allows ${left} more prompts today`,
+            reason: `Free plan allows ${left} more images today`,
           });
           return;
         }
@@ -522,7 +595,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       state.promptStatuses = prompts.map(() => 'pending' as PromptStatus);
       state.promptWorkers = prompts.map(() => null);
       state.workerStats = [];
-      state.nextWorkerIndex = 0;
+      // Keep adopted tabs: continue indexing after the highest in-use workerIndex
+      // so reused and new workers never share an index.
+      state.nextWorkerIndex = state.workers.reduce((m, w) => Math.max(m, w.workerIndex + 1), 0);
       state.rotationIndex = 0;
       state.runStartedAt = Date.now();
       stopRotation();
@@ -603,7 +678,9 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     sendResponse({ status: 'cleared' });
   } else if (msg.action === 'GET_AUTH_STATE') {
     chrome.storage.local.get('authState', (res) => {
-      sendResponse(res.authState ?? { user: null, premium: false, plan: 'none', planActivatedAt: null });
+      sendResponse(
+        res.authState ?? { user: null, premium: false, plan: 'none', planActivatedAt: null }
+      );
     });
     return true;
   } else if (msg.action === 'SET_PROMPT_SKIPPED') {
@@ -636,6 +713,90 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     state.promptStatuses = enableFrom(state.promptStatuses, index);
     saveState();
     sendResponse({ status: 'updated' });
+  } else if (msg.action === 'CONTENT_WARNING_PRESENT') {
+    if (!state.contentWarningPresent) {
+      state.contentWarningPresent = true;
+      state.perchanceTabOpen = true;
+      log('Perchance shows a content warning. Please clear it to continue.', 'warning');
+      saveState();
+    } else {
+      sendResponse({ status: 'noted' });
+    }
+  } else if (msg.action === 'CONTENT_WARNING_CLEARED') {
+    if (state.contentWarningPresent) {
+      state.contentWarningPresent = false;
+      log('Content warning cleared. Automation ready.', 'success');
+      saveState();
+    } else {
+      sendResponse({ status: 'noted' });
+    }
+  } else if (msg.action === 'GET_PERCHANCE_STATUS') {
+    chrome.tabs.query({ url: PERCHANCE_QUERY_URLS }, (tabs) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({
+          open: state.perchanceTabOpen,
+          warning: state.contentWarningPresent,
+        });
+        return;
+      }
+      state.perchanceTabOpen = tabs.length > 0;
+      if (!state.perchanceTabOpen) state.contentWarningPresent = false;
+      broadcastState();
+      sendResponse({
+        open: state.perchanceTabOpen,
+        warning: state.contentWarningPresent,
+      });
+    });
+    return true;
+  } else if (msg.action === 'OPEN_PERCHANCE') {
+    // If a Perchance tab is already open, just focus it instead of opening a
+    // duplicate — that tab is adopted as a worker when a run starts.
+    chrome.tabs.query({ url: PERCHANCE_QUERY_URLS }, (tabs) => {
+      if (chrome.runtime.lastError) {
+        sendResponse({ status: 'failed' });
+        return;
+      }
+      const existing = tabs.find((t) => t.id !== undefined);
+      if (existing?.id !== undefined) {
+        const existingId: number = existing.id;
+        chrome.tabs.update(existingId, { active: true }, () => {
+          state.perchanceTabOpen = true;
+          broadcastState();
+          sendResponse({ status: 'opened', tabId: existingId });
+        });
+        return;
+      }
+      chrome.tabs.create({ url: PERCHANCE_URL, active: true }, (tab) => {
+        if (chrome.runtime.lastError || tab.id === undefined) {
+          sendResponse({ status: 'failed' });
+          return;
+        }
+        state.perchanceTabOpen = true;
+        broadcastState();
+        sendResponse({ status: 'opened', tabId: tab.id });
+      });
+    });
+    return true;
+  } else if (msg.action === 'DISMISS_WARNING') {
+    chrome.tabs.query({ url: PERCHANCE_QUERY_URLS }, (tabs) => {
+      if (chrome.runtime.lastError || tabs.length === 0) {
+        sendResponse({ status: 'no-tab' });
+        return;
+      }
+      const target = tabs[0];
+      if (target?.id === undefined) {
+        sendResponse({ status: 'no-tab' });
+        return;
+      }
+      chrome.tabs.sendMessage(target.id, { action: 'CMD_DISMISS_WARNING' }, (res) => {
+        if (chrome.runtime.lastError) {
+          sendResponse({ status: 'unreachable' });
+          return;
+        }
+        sendResponse({ status: 'attempted', detail: res });
+      });
+    });
+    return true;
   }
 
   return true;

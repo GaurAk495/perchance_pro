@@ -1,5 +1,42 @@
+import { CONTENT_WARNING } from '../shared/constants.ts';
+import { attemptContentWarningAutofix } from './content-warning.ts';
+
 const generatorArea = document.querySelector('#generatorArea');
 if (generatorArea) generatorArea.remove();
+
+// ─── Content-warning gate ───
+
+let lastWarningState: boolean | null = null;
+
+function currentWarningState(): boolean {
+  for (const id of CONTENT_WARNING.containerIds) {
+    const el = document.getElementById(id);
+    if (!el) continue;
+    const style = window.getComputedStyle(el);
+    if (style.display === 'none' || style.visibility === 'hidden') continue;
+    if (el.offsetParent !== null || el.getClientRects().length > 0) return true;
+  }
+  return false;
+}
+
+setInterval(() => {
+  const present = currentWarningState();
+  if (present !== lastWarningState) {
+    lastWarningState = present;
+    chrome.runtime.sendMessage({
+      action: present ? 'CONTENT_WARNING_PRESENT' : 'CONTENT_WARNING_CLEARED',
+    });
+  }
+}, CONTENT_WARNING.pollIntervalMs);
+
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg.action === 'CMD_DISMISS_WARNING') {
+    const result = attemptContentWarningAutofix();
+    sendResponse({ status: 'attempted', detail: result });
+    return true;
+  }
+  return false;
+});
 
 // ─── Controller Logic (runs in frame that has generateButtonEl) ───
 

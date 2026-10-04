@@ -3,7 +3,7 @@ import {
   ART_STLYE,
   ART_STLYE_MIX,
   SHAPE_OF_IMAGE,
-  FREE_DAILY_PROMPT_LIMIT,
+  FREE_DAILY_IMAGE_LIMIT,
   FREE_BATCH_PROMPT_LIMIT,
   USAGE_STORAGE_KEY,
   type FilenamePatternKey,
@@ -74,6 +74,8 @@ interface AppState {
   nextWorkerIndex: number;
   runStartedAt: number;
   elapsedMs: number;
+  contentWarningPresent: boolean;
+  perchanceTabOpen: boolean;
 }
 
 interface AuthUser {
@@ -140,6 +142,15 @@ async function initAuth(): Promise<void> {
     });
   }
 
+  const upgradeInline = document.getElementById('btn-upgrade-banner-inline');
+  if (upgradeInline) {
+    upgradeInline.addEventListener('click', () => {
+      openCheckout().catch((err) => {
+        console.error('Failed to open checkout:', err);
+      });
+    });
+  }
+
   const upgradeAccountBtn = document.getElementById('btn-upgrade-account');
   if (upgradeAccountBtn) {
     upgradeAccountBtn.addEventListener('click', () => {
@@ -172,7 +183,7 @@ function showAuthScreen(authState: AuthState): void {
     dashboardScreen.style.display = 'flex';
   }
   renderAccount(authState);
-  renderPremiumBanner();
+  renderQuotaUI();
 }
 
 async function renderAccount(authState: AuthState): Promise<void> {
@@ -195,7 +206,8 @@ async function renderAccount(authState: AuthState): Promise<void> {
   }
   if (planValue) {
     if (authState.premium) {
-      planValue.textContent = authState.plan === 'lifetime' ? 'Lifetime Premium' : 'Monthly Premium';
+      planValue.textContent =
+        authState.plan === 'lifetime' ? 'Lifetime Premium' : 'Monthly Premium';
     } else {
       planValue.textContent = 'Free plan';
     }
@@ -212,12 +224,18 @@ async function renderAccount(authState: AuthState): Promise<void> {
         });
         quota.textContent = `Unlimited — expires ${dateStr} (${daysLeft} days left)`;
       } else {
-        quota.textContent = 'Unlimited prompts — enjoy!';
+        quota.textContent = 'Unlimited images — enjoy!';
       }
+      hideQuotaBar();
+      setQuotaMeta('');
     } else {
       const usage = await getDailyUsage();
-      const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
-      quota.textContent = `${left}/${FREE_DAILY_PROMPT_LIMIT} prompts left today`;
+      const left = Math.max(0, FREE_DAILY_IMAGE_LIMIT - usage.count);
+      quota.textContent = `${usage.count}/${FREE_DAILY_IMAGE_LIMIT} images used today`;
+      setQuotaBar(usage.count, FREE_DAILY_IMAGE_LIMIT, 'account');
+      setQuotaMeta(
+        left === 0 ? 'Daily limit reached — upgrade for unlimited.' : `${left} images left today`
+      );
     }
   }
 
@@ -290,6 +308,7 @@ async function getDailyUsage(): Promise<DailyUsage> {
 
 function checkFreeQuota(
   batchSize: number,
+  numImages: number,
   usage: DailyUsage
 ): { allowed: boolean; message: string } {
   if (batchSize > FREE_BATCH_PROMPT_LIMIT) {
@@ -298,34 +317,116 @@ function checkFreeQuota(
       message: `Free plan allows max ${FREE_BATCH_PROMPT_LIMIT} prompts per batch.`,
     };
   }
-  const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
-  if (usage.count + batchSize > FREE_DAILY_PROMPT_LIMIT) {
-    return { allowed: false, message: `Free plan allows ${left} more prompts today.` };
+  const batchImages = batchSize * numImages;
+  const left = Math.max(0, FREE_DAILY_IMAGE_LIMIT - usage.count);
+  if (usage.count + batchImages > FREE_DAILY_IMAGE_LIMIT) {
+    return { allowed: false, message: `Free plan allows ${left} more images today.` };
   }
   return { allowed: true, message: '' };
 }
 
-async function renderPremiumBanner(): Promise<void> {
-  const banner = document.getElementById('premium-banner');
-  const bannerText = document.getElementById('premium-banner-text');
-  if (!banner) return;
+// ─── Quota UI ───
 
-  const authState = await getAuthState();
-  if (!authState.user) {
-    banner.style.display = 'none';
-    return;
+function quotaBarId(context: 'banner' | 'account'): string {
+  return context === 'banner' ? 'quota-banner' : 'account-quota-track';
+}
+
+function setQuotaBar(used: number, limit: number, context: 'banner' | 'account'): void {
+  const pct = Math.min(100, Math.max(0, limit > 0 ? (used / limit) * 100 : 0));
+  const fillId = context === 'banner' ? 'quota-banner-fill' : 'account-quota-fill';
+  const trackId = quotaBarId(context);
+  const fill = document.getElementById(fillId);
+  const track = document.getElementById(trackId);
+  if (fill) {
+    fill.style.width = `${pct}%`;
+    fill.classList.toggle('warn', pct >= 75);
+    fill.classList.toggle('danger', pct >= 100);
   }
-  if (authState.premium) {
-    banner.style.display = 'none';
+  if (track) track.style.display = '';
+}
+
+function hideQuotaBar(context?: 'banner' | 'account'): void {
+  const ids: string[] = [];
+  if (context === 'banner') ids.push(quotaBarId('banner'));
+  else if (context === 'account') ids.push(quotaBarId('account'));
+  else ids.push(quotaBarId('banner'), quotaBarId('account'));
+  for (const id of ids) {
+    const el = document.getElementById(id);
+    if (el) el.style.display = 'none';
+  }
+}
+
+function setQuotaMeta(text: string): void {
+  const meta = document.getElementById('account-quota-meta');
+  if (meta) {
+    meta.textContent = text;
+    meta.style.display = text ? '' : 'none';
+  }
+}
+
+function showQuotaAlert(title: string, message: string): void {
+  const alert = document.getElementById('quotamodal');
+  if (!alert) return;
+  const titleEl = document.getElementById('quota-alert-title');
+  const textEl = document.getElementById('quota-alert-text');
+  if (titleEl) titleEl.textContent = title;
+  if (textEl) textEl.textContent = message;
+  alert.style.display = 'flex';
+}
+
+function hideQuotaAlert(): void {
+  const alert = document.getElementById('quotamodal');
+  if (alert) alert.style.display = 'none';
+}
+
+async function renderQuotaUI(): Promise<void> {
+  const banner = document.getElementById('quota-banner');
+  const bannerText = document.getElementById('quota-banner-text');
+  const inlineUpgrade = document.getElementById('btn-upgrade-banner-inline');
+  const authState = await getAuthState();
+
+  if (!authState.user || authState.premium) {
+    if (banner) banner.style.display = 'none';
+    hideQuotaBar('account');
+    hideQuotaAlert();
     return;
   }
 
   const usage = await getDailyUsage();
-  const left = Math.max(0, FREE_DAILY_PROMPT_LIMIT - usage.count);
+  const used = Math.min(usage.count, FREE_DAILY_IMAGE_LIMIT);
+  const left = Math.max(0, FREE_DAILY_IMAGE_LIMIT - usage.count);
+
   if (bannerText) {
-    bannerText.textContent = `Free plan · ${left}/${FREE_DAILY_PROMPT_LIMIT} prompts left today`;
+    bannerText.textContent = `Free plan · ${used}/${FREE_DAILY_IMAGE_LIMIT} images used · ${left} left`;
   }
-  banner.style.display = 'flex';
+  if (banner) {
+    banner.style.display = 'block';
+    setQuotaBar(used, FREE_DAILY_IMAGE_LIMIT, 'banner');
+  }
+  if (inlineUpgrade) inlineUpgrade.style.display = '';
+
+  const accountQuota = document.getElementById('account-quota');
+  if (accountQuota) {
+    accountQuota.textContent = `${used}/${FREE_DAILY_IMAGE_LIMIT} images used today`;
+    setQuotaBar(used, FREE_DAILY_IMAGE_LIMIT, 'account');
+    setQuotaMeta(
+      left === 0 ? 'Daily limit reached — upgrade for unlimited.' : `${left} images left today`
+    );
+  }
+
+  if (left === 0) {
+    showQuotaAlert(
+      'Daily quota reached',
+      `You've used all ${FREE_DAILY_IMAGE_LIMIT} free images today. Upgrade for unlimited access, or come back tomorrow.`
+    );
+  } else if (left <= 10) {
+    showQuotaAlert(
+      'Low daily quota',
+      `Only ${left} image${left === 1 ? '' : 's'} left today. Upgrade for unlimited access.`
+    );
+  } else {
+    hideQuotaAlert();
+  }
 }
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -336,6 +437,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   initLogActions();
   initImportExport();
   initPromptListActions();
+  initPerchanceGate();
   loadSettings();
 
   chrome.runtime.sendMessage({ action: 'GET_STATE' }, (state: AppState) => {
@@ -343,14 +445,19 @@ document.addEventListener('DOMContentLoaded', async () => {
       cachedState = state;
       renderAll(state);
     }
+    renderQuotaUI();
+    refreshPerchanceStatus();
   });
 
   chrome.runtime.onMessage.addListener((msg) => {
     if (msg.action === 'STATE_UPDATED') {
       cachedState = msg.state as AppState;
       renderAll(msg.state as AppState);
+      renderQuotaUI();
     }
   });
+
+  window.setInterval(refreshPerchanceStatus, 4000);
 });
 
 // ─── Tab system ───
@@ -383,6 +490,24 @@ function initDashboardActions(): void {
 }
 
 async function handleStart(): Promise<void> {
+  const status = await getPerchanceStatus();
+  if (!status.open) {
+    renderGate({
+      ...cachedState,
+      perchanceTabOpen: false,
+      contentWarningPresent: false,
+    } as AppState);
+    return;
+  }
+  if (status.warning) {
+    renderGate({
+      ...cachedState,
+      perchanceTabOpen: true,
+      contentWarningPresent: true,
+    } as AppState);
+    return;
+  }
+
   const textarea = $<HTMLTextAreaElement>('input-prompts');
   const prompts = parsePromptList(textarea.value, currentFormat);
   if (!prompts.length) return;
@@ -390,15 +515,11 @@ async function handleStart(): Promise<void> {
   const authState = await getAuthState();
   if (!authState.premium) {
     const usage = await getDailyUsage();
-    const quota = checkFreeQuota(prompts.length, usage);
+    const quota = checkFreeQuota(prompts.length, readNumImages(), usage);
     if (!quota.allowed) {
-      const bannerText = document.getElementById('premium-banner-text');
-      if (bannerText) bannerText.textContent = quota.message;
-      const banner = document.getElementById('premium-banner');
-      if (banner) {
-        banner.style.display = 'flex';
-        banner.scrollIntoView({ behavior: 'smooth' });
-      }
+      showQuotaAlert('Unable to start', quota.message);
+      const alert = document.getElementById('quotamodal');
+      if (alert) alert.scrollIntoView({ behavior: 'smooth' });
       return;
     }
   }
@@ -432,6 +553,81 @@ function handleStop(): void {
   chrome.runtime.sendMessage({ action: 'STOP' });
 }
 
+// ─── Perchance Required gate + content-warning guide ───
+
+interface PerchanceStatus {
+  open: boolean;
+  warning: boolean;
+}
+
+function getPerchanceStatus(): Promise<PerchanceStatus> {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage({ action: 'GET_PERCHANCE_STATUS' }, (res) => {
+      if (chrome.runtime.lastError || !res) {
+        resolve({
+          open: cachedState?.perchanceTabOpen ?? false,
+          warning: cachedState?.contentWarningPresent ?? false,
+        });
+        return;
+      }
+      resolve({ open: !!res.open, warning: !!res.warning });
+    });
+  });
+}
+
+function initPerchanceGate(): void {
+  $<HTMLButtonElement>('btn-open-perchance').addEventListener('click', handleOpenPerchance);
+  $<HTMLButtonElement>('btn-recheck-warning').addEventListener('click', () => {
+    void refreshPerchanceStatus();
+  });
+}
+
+async function handleOpenPerchance(): Promise<void> {
+  const btn = $<HTMLButtonElement>('btn-open-perchance');
+  btn.disabled = true;
+  btn.textContent = 'Opening…';
+  try {
+    await new Promise<void>((resolve) => {
+      chrome.runtime.sendMessage({ action: 'OPEN_PERCHANCE' }, () => resolve());
+    });
+    await refreshPerchanceStatus();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Open Perchance Now';
+  }
+}
+
+async function refreshPerchanceStatus(): Promise<void> {
+  const status = await getPerchanceStatus();
+  if (cachedState) {
+    cachedState = {
+      ...cachedState,
+      perchanceTabOpen: status.open,
+      contentWarningPresent: status.warning,
+    };
+    renderConnectionBadge(cachedState);
+    renderButtons(cachedState);
+    renderGate(cachedState);
+  } else {
+    renderGate({
+      perchanceTabOpen: status.open,
+      contentWarningPresent: status.warning,
+    } as AppState);
+  }
+}
+
+function renderGate(state: AppState): void {
+  const gate = document.getElementById('perchance-gate');
+  const guide = document.getElementById('warning-guide');
+  if (!gate || !guide) return;
+
+  const needsPerchance = !state.perchanceTabOpen;
+  const needsWarningFix = state.perchanceTabOpen && state.contentWarningPresent;
+
+  gate.style.display = needsPerchance ? 'flex' : 'none';
+  guide.style.display = !needsPerchance && needsWarningFix ? 'flex' : 'none';
+}
+
 // ─── Settings ───
 
 function initSettingsForm(): void {
@@ -440,7 +636,7 @@ function initSettingsForm(): void {
     const opt = document.createElement('option');
     opt.value = style.value;
     opt.textContent = style.label;
-    if (style.label === '𝗡𝗼 𝘀𝘁𝘆𝗹𝗲') {
+    if (style.value === 'ref:optionKeyName:𝗡𝗼 𝘀𝘁𝘆𝗹𝗲') {
       opt.selected = true;
     }
     artStyleSelect.appendChild(opt);
@@ -461,6 +657,15 @@ function initSettingsForm(): void {
     opt.textContent = shape.label;
     shapeSelect.appendChild(opt);
   }
+
+  const artStyleHint = document.getElementById('art-style-hint');
+  function updateArtStyleHint(): void {
+    if (artStyleHint) {
+      artStyleHint.style.display = artStyleSelect.value === '' ? '' : 'none';
+    }
+  }
+  artStyleSelect.addEventListener('change', updateArtStyleHint);
+  updateArtStyleHint();
 
   const inputs = [
     'input-workers',
@@ -602,6 +807,7 @@ function initLogActions(): void {
 function renderAll(state: AppState): void {
   renderConnectionBadge(state);
   renderButtons(state);
+  renderGate(state);
   renderPromptList(state);
   renderLogs(state);
   renderStats(state);
@@ -627,9 +833,13 @@ function renderAll(state: AppState): void {
 
 function renderConnectionBadge(state: AppState): void {
   const badge = $('connection-badge');
-  const online = state.workers.some((w) => w.frameId !== null);
+  const online = state.perchanceTabOpen || state.workers.some((w) => w.frameId !== null);
   badge.textContent = online ? '◉ Online' : '◉ Offline';
   badge.className = online ? 'online' : 'offline';
+}
+
+function isPerchanceBlocked(state: AppState): boolean {
+  return !state.perchanceTabOpen || state.contentWarningPresent;
 }
 
 function renderButtons(state: AppState): void {
@@ -639,7 +849,7 @@ function renderButtons(state: AppState): void {
   const importBtn = $<HTMLButtonElement>('btn-import');
   const clearBtn = $<HTMLButtonElement>('btn-clear');
 
-  startBtn.disabled = state.isRunning;
+  startBtn.disabled = state.isRunning || isPerchanceBlocked(state);
   stopBtn.disabled = !state.isRunning;
   pauseBtn.disabled = !state.isRunning;
   importBtn.disabled = state.isRunning;

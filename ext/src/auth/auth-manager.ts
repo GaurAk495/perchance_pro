@@ -80,18 +80,20 @@ export async function signOut(): Promise<void> {
 
 export async function getAuthState(): Promise<AuthState> {
   const result = await chrome.storage.local.get(STORAGE_KEY);
-  return (result[STORAGE_KEY] as AuthState) ?? {
-    user: null,
-    premium: false,
-    plan: 'none',
-    planActivatedAt: null,
-  };
+  return (
+    (result[STORAGE_KEY] as AuthState) ?? {
+      user: null,
+      premium: false,
+      plan: 'none',
+      planActivatedAt: null,
+    }
+  );
 }
 
 export async function setAuthPremium(
   premium: boolean,
   plan: string = 'none',
-  planActivatedAt: number | null = null,
+  planActivatedAt: number | null = null
 ): Promise<void> {
   const current = await getAuthState();
   if (current.user) {

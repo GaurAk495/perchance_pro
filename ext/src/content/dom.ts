@@ -1,9 +1,8 @@
-import { IFRAME_ID, SELECTORS } from '../shared/constants.ts';
+import { CONTENT_WARNING, IFRAME_ID, SELECTORS } from '../shared/constants.ts';
 
 function getIframeDocument(): Document | null {
   const iframe = document.getElementById(IFRAME_ID) as HTMLIFrameElement | null;
   if (!iframe) return null;
-  console.log('iframe', iframe);
   return iframe.contentDocument ?? iframe.contentWindow?.document ?? null;
 }
 
@@ -41,7 +40,6 @@ export function getImageIframes(): readonly HTMLIFrameElement[] {
   const doc = getIframeDocument();
   if (!doc) return [];
   const container = doc.querySelector(SELECTORS.outputArea);
-  console.log('container', container);
   if (!container) return [];
   return Array.from(container.querySelectorAll<HTMLIFrameElement>(SELECTORS.imageIframe));
 }
@@ -68,4 +66,30 @@ export function setFieldValue(
 
 export function clickButton(button: HTMLButtonElement): void {
   button.click();
+}
+
+// ─── Content-warning gate ───
+
+function isElementVisible(el: HTMLElement): boolean {
+  const style = window.getComputedStyle(el);
+  if (style.display === 'none' || style.visibility === 'hidden') return false;
+  return el.offsetParent !== null || el.getClientRects().length > 0;
+}
+
+export function getContentWarningElement(
+  root: Document | HTMLElement = document
+): HTMLElement | null {
+  for (const id of CONTENT_WARNING.containerIds) {
+    const el = root.querySelector<HTMLElement>(`#${id}`);
+    if (el) return el;
+  }
+  return null;
+}
+
+export function isContentWarningVisible(): boolean {
+  for (const id of CONTENT_WARNING.containerIds) {
+    const el = document.getElementById(id);
+    if (el && isElementVisible(el)) return true;
+  }
+  return false;
 }

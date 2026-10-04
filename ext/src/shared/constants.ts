@@ -1,5 +1,14 @@
 export const IFRAME_ID = 'outputIframeEl';
 
+export const PERCHANCE_URL = 'https://perchance.org/image-generator-professional';
+
+export const CONTENT_WARNING = {
+  containerId: 'ordinaryContentWarningMessageEl',
+  facadeId: 'contentWarningFacadeEl',
+  containerIds: ['ordinaryContentWarningMessageEl', 'contentWarningFacadeEl'],
+  pollIntervalMs: 2000,
+} as const;
+
 export const SELECTORS = {
   prompt: 'textarea.paragraph-input[data-name="description"]',
   negative: 'textarea.paragraph-input[data-name="negative"]',
@@ -51,11 +60,19 @@ export const DEFAULTS = {
   foregroundIntervalMs: 5000,
 } as const;
 
-export const FREE_DAILY_PROMPT_LIMIT = 50;
-export const FREE_BATCH_PROMPT_LIMIT = 10;
+export const FREE_DAILY_IMAGE_LIMIT = 50;
+export const FREE_BATCH_PROMPT_LIMIT = 20;
 export const USAGE_STORAGE_KEY = 'usageTracker';
 
 export const ART_STLYE = [
+  {
+    value: 'ref:optionKeyName:𝗡𝗼 𝘀𝘁𝘆𝗹𝗲',
+    label: 'No style',
+  },
+  {
+    value: '',
+    label: 'Website default',
+  },
   {
     value: 'ref:optionKeyName:Painted Anime Plus',
     label: 'Painted Anime Plus',
@@ -457,26 +474,6 @@ export const ART_STLYE = [
     label: 'American Girl',
   },
   {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜',
-    label: '𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞',
-    label: '𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜 (Stronger)',
-    label: '𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜 (Stronger)',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞 (Stronger)',
-    label: '𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞 (Stronger)',
-  },
-  {
-    value: 'ref:optionKeyName:NSFW Painted Anime',
-    label: 'NSFW Painted Anime',
-  },
-  {
     value: 'ref:optionKeyName:Realistic Human Generator',
     label: 'Realistic Human Generator',
   },
@@ -487,8 +484,8 @@ export const ART_STLYE_MIX = [
     label: 'Not Mix',
   },
   {
-    value: 'ref:optionKeyName:NSFW',
-    label: 'NSFW',
+    value: '',
+    label: 'Website default',
   },
   {
     value: 'ref:optionKeyName:Painted Anime Plus',
@@ -885,26 +882,6 @@ export const ART_STLYE_MIX = [
   {
     value: 'ref:optionKeyName:American Girl',
     label: 'American Girl',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜',
-    label: '𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞',
-    label: '𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜 (Stronger)',
-    label: '𝐍𝐒𝐅𝐖 - 𝐑𝐞𝐚𝐥𝐢𝐬𝐭𝐢𝐜 (Stronger)',
-  },
-  {
-    value: 'ref:optionKeyName:𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞 (Stronger)',
-    label: '𝐍𝐒𝐅𝐖 - 𝐀𝐧𝐢𝐦𝐞 (Stronger)',
-  },
-  {
-    value: 'ref:optionKeyName:NSFW Painted Anime',
-    label: 'NSFW Painted Anime',
   },
   {
     value: 'ref:optionKeyName:Realistic Human Generator',
